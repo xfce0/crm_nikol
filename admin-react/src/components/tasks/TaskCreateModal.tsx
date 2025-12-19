@@ -211,7 +211,7 @@ export const TaskCreateModal = ({ isOpen, onClose, onSuccess, employees, project
               value={formData.description}
               onChange={(e) => handleChange('description', e.target.value)}
               rows={4}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none"
+              className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none"
               placeholder="Введите описание задачи"
             />
           </div>

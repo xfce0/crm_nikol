@@ -50,13 +50,13 @@ class TaskScheduler:
         """Основной цикл планировщика"""
         while self.is_running:
             try:
-                # Проверяем дедлайны задач каждые 3 часа
+                # Проверяем дедлайны задач каждые 4 часа
                 await self._check_task_deadlines()
 
-                # Проверяем просроченные платежи каждые 3 часа
+                # Проверяем просроченные платежи каждые 4 часа
                 await self._check_payment_deadlines()
 
-                await asyncio.sleep(180 * 60)  # 3 часа = 180 минут
+                await asyncio.sleep(240 * 60)  # 4 часа = 240 минут
 
             except asyncio.CancelledError:
                 logger.info("Планировщик задач прерван")

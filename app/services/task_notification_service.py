@@ -19,7 +19,26 @@ class TaskNotificationService:
     def __init__(self):
         self.bot_token = settings.BOT_TOKEN
         self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
-        
+
+    def _is_quiet_hours(self) -> bool:
+        """Проверить, сейчас тихие часы (23:00-08:00 МСК)
+
+        Тихие часы: с 23:00 до 8:00 по МСК (GMT+3)
+        В это время уведомления не отправляются
+        """
+        # Получаем текущее время UTC и конвертируем в МСК (UTC+3)
+        now_utc = datetime.utcnow()
+        now_msk = now_utc + timedelta(hours=3)  # MSK = UTC+3
+        current_hour = now_msk.hour
+
+        # Тихие часы: с 23:00 до 08:00
+        is_quiet = current_hour >= 23 or current_hour < 8
+
+        if is_quiet:
+            logger.info(f"🔕 Тихие часы (23:00-08:00 МСК): текущее время {now_msk.strftime('%H:%M')} МСК. Уведомления не отправляются.")
+
+        return is_quiet
+
     async def send_telegram_message(self, chat_id: int, message: str, parse_mode: str = "HTML") -> bool:
         """Отправить сообщение в Telegram"""
         try:
@@ -484,6 +503,11 @@ class TaskNotificationService:
             Количество отправленных уведомлений
         """
         try:
+            # Проверяем тихие часы (23:00-08:00 МСК)
+            if self._is_quiet_hours():
+                logger.info("⏰ Пропускаем отправку уведомлений: тихие часы")
+                return 0
+
             now = datetime.utcnow()
 
             # Получаем все задачи с дедлайнами, которые не завершены

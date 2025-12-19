@@ -14,7 +14,7 @@ from pathlib import Path
 from PIL import Image
 import io
 
-from ...core.database import get_db
+from ...database.database import get_db
 from ...database.models import (
     ProjectRevision, RevisionMessage, RevisionFile, RevisionMessageFile,
     Project, User, AdminUser

@@ -1085,7 +1085,7 @@ export const MyTasks = () => {
                     onPaste={handlePaste}
                     placeholder="Написать комментарий... (Ctrl+V для вставки скриншотов)"
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
                   />
 
                   {/* Preview изображений */}
