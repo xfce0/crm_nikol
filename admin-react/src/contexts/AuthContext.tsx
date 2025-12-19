@@ -143,10 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     localStorage.removeItem('auth')
     setUser(null)
-
-    // Перенаправляем на страницу входа
-    const basePath = import.meta.env.MODE === 'production' ? '/admin' : ''
-    window.location.href = basePath + '/login'
+    // React Router автоматически перенаправит на /login через PrivateRoute
   }
 
   /**
