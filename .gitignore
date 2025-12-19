@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build outputs
+admin-react/dist/
+admin-react/build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/*.log
+
+# Environment
+.env.local
+.env.*.local
+
+# Database backups (optional - раскомментируйте если не нужны в git)
+# backups/*.db
+# *.db
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Uploads (опционально)
+uploads/*
+!uploads/.gitkeep

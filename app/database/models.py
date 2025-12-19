@@ -1,0 +1,2016 @@
+from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Boolean, Float, JSON, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from datetime import datetime
+import json
+import hashlib
+
+Base = declarative_base()
+
+class User(Base):
+    """Модель пользователя"""
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_id = Column(Integer, unique=True, index=True, nullable=False)
+    username = Column(String(255), nullable=True)
+    first_name = Column(String(255), nullable=True)
+    last_name = Column(String(255), nullable=True)
+    phone = Column(String(20), nullable=True)
+    email = Column(String(255), nullable=True)
+    registration_date = Column(DateTime, default=datetime.utcnow)
+    last_activity = Column(DateTime, default=datetime.utcnow)
+    state = Column(String(100), default="main_menu")  # Текущее состояние в боте
+    preferences = Column(JSON, default=lambda: {})  # Настройки пользователя
+    notes = Column(Text, nullable=True)  # Заметки админа
+    is_active = Column(Boolean, default=True)
+    
+    # Настройки бота и хостинга
+    bot_token = Column(String(500), nullable=True)  # API токен бота
+    timeweb_login = Column(String(255), nullable=True)  # Логин Timeweb
+    timeweb_password = Column(String(255), nullable=True)  # Пароль Timeweb
+    user_telegram_id = Column(String(50), nullable=True)  # ID пользователя в Telegram для связи
+    chat_id = Column(String(50), nullable=True)  # ID чата для уведомлений
+    bot_configured = Column(Boolean, default=False)  # Статус настройки бота
+    
+    # Связи
+    projects = relationship("Project", back_populates="user")
+    messages = relationship("Message", back_populates="user")
+    consultant_sessions = relationship("ConsultantSession", back_populates="user")
+    created_revisions = relationship("ProjectRevision", back_populates="created_by")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "telegram_id": self.telegram_id,
+            "username": self.username,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "phone": self.phone,
+            "email": self.email,
+            "registration_date": self.registration_date.isoformat() if self.registration_date else None,
+            "last_activity": self.last_activity.isoformat() if self.last_activity else None,
+            "state": self.state,
+            "preferences": self.preferences,
+            "notes": self.notes,
+            "is_active": self.is_active,
+            "bot_token": self.bot_token,
+            "timeweb_login": self.timeweb_login,
+            "timeweb_password": self.timeweb_password,
+            "user_telegram_id": self.user_telegram_id,
+            "chat_id": self.chat_id,
+            "bot_configured": self.bot_configured
+        }
+
+class Project(Base):
+    """Модель проекта"""
+    __tablename__ = "projects"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Клиент (обязательное)
+    client_telegram_id = Column(String(100), nullable=True)  # Telegram ID клиента для доступа к мини-приложению
+    client_telegram_username = Column(String(100), nullable=True)  # Telegram username клиента (@username) для автопривязки
+    title = Column(String(500), nullable=False)  # Название проекта (обязательное)
+    description = Column(Text, nullable=True)
+    original_request = Column(Text, nullable=True)  # Оригинальный запрос пользователя
+    structured_tz = Column(JSON, default=lambda: {})  # Структурированное ТЗ
+    status = Column(String(50), default="new")  # new, review, accepted, in_progress, testing, completed, cancelled, overdue
+    is_archived = Column(Boolean, default=False)  # Архивирован ли проект
+    priority = Column(String(20), default="normal")  # low, normal, high, urgent
+    project_type = Column(String(50), nullable=True)  # telegram_bot, whatsapp_bot, web_bot, integration
+    complexity = Column(String(20), default="medium")  # simple, medium, complex, premium
+    color = Column(String(20), default="default")  # default, green, yellow, red
+    estimated_cost = Column(Float, nullable=False, default=0.0)  # Полная стоимость проекта (обязательное)
+    executor_cost = Column(Float, nullable=True)  # Стоимость для исполнителя (видит исполнитель)
+    final_cost = Column(Float, nullable=True)
+    
+    # Финансовые поля
+    prepayment_amount = Column(Float, default=0.0)  # Сумма предоплаты от клиента
+    client_paid_total = Column(Float, default=0.0)  # Сколько уже заплатил клиент
+    executor_paid_total = Column(Float, default=0.0)  # Сколько уже выплачено исполнителю
+    
+    estimated_hours = Column(Integer, default=0)
+    actual_hours = Column(Integer, nullable=True)
+    
+    # Даты проекта (обязательные)
+    start_date = Column(DateTime, nullable=False, default=datetime.utcnow)  # Дата начала (обязательное)
+    planned_end_date = Column(DateTime, nullable=False)  # Плановая дата завершения (обязательное)
+    actual_end_date = Column(DateTime, nullable=True)  # Фактическая дата завершения
+    deadline = Column(DateTime, nullable=True)  # Дедлайн (для совместимости)
+    
+    # Ответственные
+    responsible_manager_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)  # Ответственный менеджер
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    project_metadata = Column(JSON, default=lambda: {})  # Дополнительные данные
+    
+    # Назначение исполнителя
+    assigned_executor_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    assigned_at = Column(DateTime, nullable=True)  # Когда назначен исполнитель
+    
+    # Связь с CRM
+    source_deal_id = Column(Integer, nullable=True)  # ID сделки, из которой создан проект
+    paid_amount = Column(Float, default=0.0)  # Сумма поступлений по проекту
+
+    # Документы проекта
+    contract_document_id = Column(Integer, nullable=True)  # ID документа договора (только owner видит)
+
+    # Связи
+    user = relationship("User", back_populates="projects")
+    messages = relationship("Message", back_populates="project")
+    legacy_files = relationship("File", back_populates="project")  # Старые файлы
+    files = relationship("ProjectFile", back_populates="project")  # Новые файлы проектов
+    assigned_executor = relationship("AdminUser", foreign_keys=[assigned_executor_id], back_populates="assigned_projects")
+    responsible_manager = relationship("AdminUser", foreign_keys=[responsible_manager_id])
+    status_logs = relationship("ProjectStatusLog", back_populates="project")
+    revisions = relationship("ProjectRevision", back_populates="project")
+    tasks = relationship("Task", back_populates="project")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "client_telegram_id": self.client_telegram_id,
+            "title": self.title,
+            "description": self.description,
+            "original_request": self.original_request,
+            "status": self.status,
+            "is_archived": self.is_archived,
+            "priority": self.priority,
+            "project_type": self.project_type,
+            "complexity": self.complexity,
+            "color": getattr(self, 'color', 'default'),
+            "estimated_cost": self.estimated_cost,
+            "executor_cost": self.executor_cost,
+            "final_cost": self.final_cost,
+            "prepayment_amount": self.prepayment_amount,
+            "client_paid_total": self.client_paid_total,
+            "executor_paid_total": self.executor_paid_total,
+            "estimated_hours": self.estimated_hours,
+            "actual_hours": self.actual_hours,
+            "start_date": self.start_date.isoformat() if self.start_date else None,
+            "planned_end_date": self.planned_end_date.isoformat() if self.planned_end_date else None,
+            "actual_end_date": self.actual_end_date.isoformat() if self.actual_end_date else None,
+            "deadline": self.deadline.isoformat() if self.deadline else None,
+            "responsible_manager_id": self.responsible_manager_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "structured_tz": self.structured_tz,
+            "project_metadata": self.project_metadata,
+            "assigned_executor_id": self.assigned_executor_id,
+            "assigned_at": self.assigned_at.isoformat() if self.assigned_at else None
+        }
+
+class Message(Base):
+    """Модель сообщений"""
+    __tablename__ = "messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    message_text = Column(Text, nullable=True)
+    message_type = Column(String(50), default="text")  # text, voice, document, image, video
+    sender_type = Column(String(20), default="user")  # user, admin, bot
+    file_path = Column(String(500), nullable=True)
+    is_read = Column(Boolean, default=False)
+    thread_id = Column(String(100), nullable=True)  # Для группировки сообщений
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Связи
+    user = relationship("User", back_populates="messages")
+    project = relationship("Project", back_populates="messages")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "project_id": self.project_id,
+            "message_text": self.message_text,
+            "message_type": self.message_type,
+            "sender_type": self.sender_type,
+            "file_path": self.file_path,
+            "is_read": self.is_read,
+            "thread_id": self.thread_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+class ConsultantSession(Base):
+    """Модель сессий консультанта"""
+    __tablename__ = "consultant_sessions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    session_id = Column(String(100), unique=True, nullable=False)  # Уникальный ID сессии
+    topic = Column(String(200), nullable=True)  # Тема консультации
+    status = Column(String(20), default="active")  # active, completed, expired
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)  # Время истечения сессии
+    
+    # Связи
+    user = relationship("User", back_populates="consultant_sessions")
+    queries = relationship("ConsultantQuery", back_populates="session")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "session_id": self.session_id,
+            "topic": self.topic,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None
+        }
+
+class ConsultantQuery(Base):
+    """Модель запросов к консультанту"""
+    __tablename__ = "consultant_queries"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("consultant_sessions.id"), nullable=False)
+    user_query = Column(Text, nullable=False)
+    ai_response = Column(Text, nullable=True)
+    tokens_used = Column(Integer, default=0)
+    response_time = Column(Float, default=0.0)  # Время ответа в секундах
+    created_at = Column(DateTime, default=datetime.utcnow)
+    rating = Column(Integer, nullable=True)  # Оценка ответа от 1 до 5
+    
+    # Связи
+    session = relationship("ConsultantSession", back_populates="queries")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "user_query": self.user_query,
+            "ai_response": self.ai_response,
+            "tokens_used": self.tokens_used,
+            "response_time": self.response_time,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "rating": self.rating
+        }
+
+class Portfolio(Base):
+    """Модель портфолио - обновленная версия с полным функционалом"""
+    __tablename__ = "portfolio"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(300), nullable=False)
+    subtitle = Column(String(500), nullable=True)  # Краткое описание
+    description = Column(Text, nullable=False)
+    category = Column(String(100), nullable=False)  # telegram_bots, web_development, mobile_apps, ai_integration, automation, ecommerce, other
+    
+    # Изображения
+    main_image = Column(String(500), nullable=True)  # Главное изображение
+    image_paths = Column(JSON, default=lambda: [])  # Дополнительные изображения
+    
+    # Технические характеристики
+    technologies = Column(Text, nullable=True)  # Технологии через запятую
+    complexity = Column(String(20), default="medium")  # simple, medium, complex, premium
+    complexity_level = Column(Integer, default=5)  # 1-10 для точной оценки
+    
+    # Временные и финансовые характеристики
+    development_time = Column(Integer, nullable=True)  # в днях
+    cost = Column(Float, nullable=True)  # Стоимость проекта
+    cost_range = Column(String(100), nullable=True)  # например "10000-15000"
+    show_cost = Column(Boolean, default=False)  # Показывать стоимость в боте
+    
+    # Ссылки и демо
+    demo_link = Column(String(500), nullable=True)  # Ссылка на демо
+    repository_link = Column(String(500), nullable=True)  # Ссылка на репозиторий
+    external_links = Column(JSON, default=lambda: [])  # Дополнительные ссылки
+    
+    # Настройки отображения
+    is_featured = Column(Boolean, default=False)  # Рекомендуемые работы
+    is_visible = Column(Boolean, default=True)  # Показывать в портфолио
+    sort_order = Column(Integer, default=0)  # Порядок сортировки
+    
+    # Статистика
+    views_count = Column(Integer, default=0)  # Количество просмотров
+    likes_count = Column(Integer, default=0)  # Количество лайков
+    
+    # Метаданные
+    tags = Column(Text, nullable=True)  # Теги для поиска через запятую
+    client_name = Column(String(200), nullable=True)  # Имя клиента (если можно указать)
+    project_status = Column(String(50), default="completed")  # completed, in_progress, demo
+    completed_at = Column(DateTime, nullable=True)  # Дата завершения проекта
+    
+    # Telegram публикация
+    is_published = Column(Boolean, default=False)  # Опубликовано ли в канале
+    telegram_message_id = Column(Integer, nullable=True)  # ID сообщения в канале
+    published_at = Column(DateTime, nullable=True)  # Дата публикации
+    telegram_channel_id = Column(String(100), nullable=True)  # ID канала для публикации
+    
+    # Системные поля
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(Integer, nullable=True)  # ID администратора, создавшего запись
+    
+    def to_dict(self):
+        """Преобразование в словарь для API"""
+        # Формируем полные URL для изображений для админ-панели (относительные пути)
+        main_image_url = None
+        if self.main_image:
+            main_image_url = f"/uploads/portfolio/{self.main_image}"
+        
+        image_paths_urls = []
+        if self.image_paths:
+            for img_path in self.image_paths:
+                image_paths_urls.append(f"/uploads/portfolio/{img_path}")
+        
+        return {
+            "id": self.id,
+            "title": self.title,
+            "subtitle": self.subtitle,
+            "description": self.description,
+            "category": self.category,
+            "main_image": main_image_url,
+            "image_paths": image_paths_urls,
+            "technologies": self.technologies,
+            "complexity": self.complexity,
+            "complexity_level": self.complexity_level,
+            "development_time": self.development_time,
+            "cost": self.cost,
+            "cost_range": self.cost_range,
+            "show_cost": self.show_cost,
+            "demo_link": self.demo_link,
+            "repository_link": self.repository_link,
+            "external_links": self.external_links,
+            "is_featured": self.is_featured,
+            "is_visible": self.is_visible,
+            "sort_order": self.sort_order,
+            "views_count": self.views_count,
+            "likes_count": self.likes_count,
+            "tags": self.tags,
+            "client_name": self.client_name,
+            "project_status": self.project_status,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "is_published": self.is_published,
+            "telegram_message_id": self.telegram_message_id,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
+            "telegram_channel_id": self.telegram_channel_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_by": self.created_by
+        }
+    
+    def to_bot_dict(self):
+        """Преобразование для отображения в боте"""
+        from ..config.settings import settings
+        
+        # Формируем полные URL для изображений
+        main_image_url = None
+        if self.main_image:
+            # Убираем лишние слэши
+            clean_path = self.main_image.lstrip('/')
+            main_image_url = f"http://localhost:{settings.ADMIN_PORT}/uploads/portfolio/{clean_path}"
+        
+        image_paths_urls = []
+        if self.image_paths:
+            for img_path in self.image_paths[:3]:  # Максимум 3 изображения для бота
+                clean_path = img_path.lstrip('/')
+                image_paths_urls.append(f"http://localhost:{settings.ADMIN_PORT}/uploads/portfolio/{clean_path}")
+        
+        return {
+            "id": self.id,
+            "title": self.title,
+            "subtitle": self.subtitle,
+            "description": self.description,
+            "category": self.category,
+            "main_image": main_image_url,
+            "image_paths": image_paths_urls,
+            "technologies": self.technologies.split(',') if self.technologies else [],
+            "complexity": self.complexity,
+            "complexity_level": self.complexity_level,
+            "development_time": self.development_time,
+            "cost_display": self.cost_range if self.show_cost and self.cost_range else None,
+            "demo_link": self.demo_link,
+            "is_featured": self.is_featured,
+            "views_count": self.views_count,
+            "likes_count": self.likes_count,
+            "tags": self.tags.split(',') if self.tags else []
+        }
+    
+    @property 
+    def technology_list(self):
+        """Получить список технологий"""
+        if not self.technologies:
+            return []
+        return [tech.strip() for tech in self.technologies.split(',') if tech.strip()]
+    
+    @property
+    def tag_list(self):
+        """Получить список тегов"""
+        if not self.tags:
+            return []
+        return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
+    
+    def increment_views(self):
+        """Увеличить счетчик просмотров"""
+        self.views_count += 1
+    
+    def increment_likes(self):
+        """Увеличить счетчик лайков"""
+        self.likes_count += 1
+
+class Review(Base):
+    """Модель отзывов"""
+    __tablename__ = "reviews"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    client_name = Column(String(200), nullable=False)
+    project_title = Column(String(300), nullable=False)
+    rating = Column(Integer, nullable=False)  # 1-5
+    review_text = Column(Text, nullable=True)
+    image_path = Column(String(500), nullable=True)
+    is_visible = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "client_name": self.client_name,
+            "project_title": self.project_title,
+            "rating": self.rating,
+            "review_text": self.review_text,
+            "image_path": self.image_path,
+            "is_visible": self.is_visible,
+            "sort_order": self.sort_order,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+class FAQ(Base):
+    """Модель FAQ"""
+    __tablename__ = "faq"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    category = Column(String(100), nullable=True)
+    views_count = Column(Integer, default=0)
+    is_visible = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "question": self.question,
+            "answer": self.answer,
+            "category": self.category,
+            "views_count": self.views_count,
+            "is_visible": self.is_visible,
+            "sort_order": self.sort_order,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+class Settings(Base):
+    """Модель настроек"""
+    __tablename__ = "settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, nullable=False)
+    value = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    data_type = Column(String(20), default="string")  # string, int, float, bool, json
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "key": self.key,
+            "value": self.value,
+            "description": self.description,
+            "data_type": self.data_type,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+class File(Base):
+    """Модель файлов"""
+    __tablename__ = "files"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    filename = Column(String(255), nullable=False)
+    original_name = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_type = Column(String(50), nullable=False)  # document, image, audio, video
+    file_size = Column(Integer, default=0)
+    upload_date = Column(DateTime, default=datetime.utcnow)
+    file_metadata = Column(JSON, default=lambda: {}) # Дополнительные данные о файле
+    
+    # Связи
+    project = relationship("Project", back_populates="legacy_files")
+    user = relationship("User")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "user_id": self.user_id,
+            "filename": self.filename,
+            "original_name": self.original_name,
+            "file_path": self.file_path,
+            "file_type": self.file_type,
+            "file_size": self.file_size,
+            "upload_date": self.upload_date.isoformat() if self.upload_date else None,
+            "file_metadata": self.file_metadata
+        }
+
+class AdminUser(Base):
+    """Модель пользователя админ-панели"""
+    __tablename__ = "admin_users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=True)
+    first_name = Column(String(255), nullable=True)
+    last_name = Column(String(255), nullable=True)
+    role = Column(String(50), nullable=False, default='executor')  # 'owner', 'admin', 'sales', 'executor'
+    telegram_id = Column(BigInteger, nullable=True, index=True)  # Telegram ID для уведомлений
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+    
+    # Связи
+    assigned_projects = relationship("Project", foreign_keys="[Project.assigned_executor_id]", back_populates="assigned_executor")
+    managed_projects = relationship("Project", foreign_keys="[Project.responsible_manager_id]", overlaps="responsible_manager")
+    uploaded_project_files = relationship("ProjectFile", back_populates="uploaded_by")
+    created_statuses = relationship("ProjectStatus", back_populates="created_by")
+    status_changes = relationship("ProjectStatusLog", back_populates="changed_by")
+    assigned_revisions = relationship("ProjectRevision", back_populates="assigned_to")
+    # activity_logs = relationship("AdminActivityLog", back_populates="user")  # TODO: Добавить миграцию
+    
+    def set_password(self, password):
+        """Установить пароль с хешированием"""
+        self.password_hash = hashlib.sha256(password.encode()).hexdigest()
+    
+    def check_password(self, password):
+        """Проверить пароль"""
+        return self.password_hash == hashlib.sha256(password.encode()).hexdigest()
+    
+    def is_owner(self):
+        """Проверить, является ли пользователь владельцем"""
+        return self.role == 'owner'
+    
+    def is_executor(self):
+        """Проверить, является ли пользователь исполнителем"""
+        return self.role == 'executor'
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "email": self.email,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "role": self.role,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_login": self.last_login.isoformat() if self.last_login else None
+        }
+
+class UIElementPermission(Base):
+    """Модель детальных прав доступа к элементам интерфейса"""
+    __tablename__ = "ui_element_permissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_user_id = Column(Integer, ForeignKey("admin_users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Модуль системы (раздел)
+    module = Column(String(100), nullable=False, index=True)  # 'projects', 'tasks', 'analytics', etc.
+
+    # Тип элемента
+    element_type = Column(String(50), nullable=False, index=True)  # 'field', 'button', 'section', 'tab', 'column', 'action'
+
+    # Уникальный идентификатор элемента
+    element_id = Column(String(255), nullable=False, index=True)  # 'projects.title', 'projects.edit_button', etc.
+
+    # Разрешен ли доступ к элементу
+    is_enabled = Column(Boolean, default=True, nullable=False)
+
+    # Метаданные
+    description = Column(Text, nullable=True)  # Описание элемента
+
+    # Даты
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Связи
+    admin_user = relationship("AdminUser", backref="ui_permissions")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "admin_user_id": self.admin_user_id,
+            "module": self.module,
+            "element_type": self.element_type,
+            "element_id": self.element_id,
+            "is_enabled": self.is_enabled,
+            "description": self.description,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+class ProjectFile(Base):
+    """Модель файлов проектов"""
+    __tablename__ = "project_files"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String(255), nullable=False)
+    original_filename = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    file_type = Column(String(100), nullable=False)  # 'zip', 'image', 'document', etc.
+    description = Column(Text, nullable=True)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Связи
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    uploaded_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)
+    
+    project = relationship("Project", back_populates="files")
+    uploaded_by = relationship("AdminUser", back_populates="uploaded_project_files")
+    
+    def to_dict(self):
+        uploaded_by_dict = None
+        if self.uploaded_by:
+            try:
+                uploaded_by_dict = self.uploaded_by.to_dict()
+            except:
+                uploaded_by_dict = {"id": self.uploaded_by_id, "username": "Unknown"}
+        
+        return {
+            "id": self.id,
+            "filename": self.filename,
+            "original_filename": self.original_filename,
+            "file_path": self.file_path,
+            "file_size": self.file_size,
+            "file_type": self.file_type,
+            "description": self.description,
+            "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
+            "project_id": self.project_id,
+            "uploaded_by_id": self.uploaded_by_id,
+            "uploaded_by": uploaded_by_dict
+        }
+
+class ProjectStatus(Base):
+    """Модель статусов проекта"""
+    __tablename__ = "project_statuses"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    color = Column(String(7), default="#6c757d")  # HEX цвет для UI
+    icon = Column(String(50), default="fas fa-circle")  # FontAwesome иконка
+    is_default = Column(Boolean, default=False)  # Системный статус
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)  # Порядок сортировки
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    
+    # Связи
+    project_status_logs = relationship("ProjectStatusLog", back_populates="status", foreign_keys="[ProjectStatusLog.status_id]")
+    created_by = relationship("AdminUser", back_populates="created_statuses")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "color": self.color,
+            "icon": self.icon,
+            "is_default": self.is_default,
+            "is_active": self.is_active,
+            "sort_order": self.sort_order,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by.to_dict() if self.created_by else None
+        }
+
+class ProjectStatusLog(Base):
+    """Лог изменений статусов проекта"""
+    __tablename__ = "project_status_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    status_id = Column(Integer, ForeignKey("project_statuses.id"), nullable=False)
+    previous_status_id = Column(Integer, ForeignKey("project_statuses.id"), nullable=True)
+    comment = Column(Text, nullable=True)  # Комментарий к смене статуса
+    changed_at = Column(DateTime, default=datetime.utcnow)
+    changed_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)
+    
+    # Связи
+    project = relationship("Project", back_populates="status_logs")
+    status = relationship("ProjectStatus", back_populates="project_status_logs", foreign_keys=[status_id])
+    previous_status = relationship("ProjectStatus", foreign_keys=[previous_status_id])
+    changed_by = relationship("AdminUser", back_populates="status_changes")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "status": self.status.to_dict() if self.status else None,
+            "previous_status": self.previous_status.to_dict() if self.previous_status else None,
+            "comment": self.comment,
+            "changed_at": self.changed_at.isoformat() if self.changed_at else None,
+            "changed_by": self.changed_by.to_dict() if self.changed_by else None
+        }
+
+class FinanceCategory(Base):
+    """Модель категорий финансов"""
+    __tablename__ = "finance_categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)  # Название категории
+    type = Column(String(50), nullable=False)  # income или expense
+    description = Column(Text, nullable=True)
+    color = Column(String(7), default="#6c757d")  # Цвет для графиков
+    icon = Column(String(50), default="fas fa-circle")  # Иконка
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    
+    # Связи
+    created_by = relationship("AdminUser", foreign_keys=[created_by_id])
+    transactions = relationship("FinanceTransaction", back_populates="category")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "type": self.type,
+            "description": self.description,
+            "color": self.color,
+            "icon": self.icon,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by.to_dict() if self.created_by else None
+        }
+
+class FinanceTransaction(Base):
+    """Модель финансовых транзакций"""
+    __tablename__ = "finance_transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    amount = Column(Float, nullable=False)  # Сумма
+    type = Column(String(50), nullable=False)  # income или expense
+    description = Column(Text, nullable=False)  # Описание транзакции
+    date = Column(DateTime, nullable=False)  # Дата транзакции
+    category_id = Column(Integer, ForeignKey("finance_categories.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)  # Связь с проектом (если есть)
+    contractor_name = Column(String(255), nullable=True)  # Имя исполнителя/поставщика
+    account = Column(String(50), nullable=True, default="card")  # Счет: cash, card, bank
+    receipt_url = Column(String(500), nullable=True)  # Ссылка на чек/документ
+    notes = Column(Text, nullable=True)  # Дополнительные заметки
+    is_recurring = Column(Boolean, default=False)  # Повторяющаяся транзакция
+    recurring_period = Column(String(50), nullable=True)  # monthly, yearly, etc.
+    parent_transaction_id = Column(Integer, ForeignKey("finance_transactions.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)
+    
+    # Связи
+    category = relationship("FinanceCategory", back_populates="transactions")
+    project = relationship("Project", foreign_keys=[project_id])
+    created_by = relationship("AdminUser", foreign_keys=[created_by_id])
+    parent_transaction = relationship("FinanceTransaction", remote_side=[id])
+    child_transactions = relationship("FinanceTransaction", foreign_keys=[parent_transaction_id], overlaps="parent_transaction")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "amount": self.amount,
+            "type": self.type,
+            "description": self.description,
+            "date": self.date.isoformat() if self.date else None,
+            "category": self.category.to_dict() if self.category else None,
+            "project": {"id": self.project.id, "title": self.project.title} if self.project else None,
+            "contractor_name": self.contractor_name,
+            "account": self.account,
+            "receipt_url": self.receipt_url,
+            "notes": self.notes,
+            "is_recurring": self.is_recurring,
+            "recurring_period": self.recurring_period,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by.to_dict() if self.created_by else None
+        }
+
+class FinanceBudget(Base):
+    """Модель бюджетов"""
+    __tablename__ = "finance_budgets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)  # Название бюджета
+    category_id = Column(Integer, ForeignKey("finance_categories.id"), nullable=False)
+    planned_amount = Column(Float, nullable=False)  # Запланированная сумма
+    period_start = Column(DateTime, nullable=False)  # Начало периода
+    period_end = Column(DateTime, nullable=False)  # Конец периода
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)
+    
+    # Связи
+    category = relationship("FinanceCategory")
+    created_by = relationship("AdminUser", foreign_keys=[created_by_id])
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "category": self.category.to_dict() if self.category else None,
+            "planned_amount": self.planned_amount,
+            "period_start": self.period_start.isoformat() if self.period_start else None,
+            "period_end": self.period_end.isoformat() if self.period_end else None,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by.to_dict() if self.created_by else None
+        }
+
+# Модели для расширенной финансовой системы
+
+class Contractor(Base):
+    """Модель исполнителя/подрядчика"""
+    __tablename__ = "contractors"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    contact_info = Column(JSON, default=lambda: {})  # email, phone, telegram, etc.
+    skills = Column(JSON, default=lambda: [])  # навыки исполнителя
+    hourly_rate = Column(Float, nullable=True)  # ставка за час
+    project_rate = Column(Float, nullable=True)  # ставка за проект
+    rating = Column(Float, default=0.0)  # рейтинг исполнителя
+    status = Column(String(50), default="active")  # active, inactive, blocked
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Связи
+    payments = relationship("ContractorPayment", back_populates="contractor")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "contact_info": self.contact_info,
+            "skills": self.skills,
+            "hourly_rate": self.hourly_rate,
+            "project_rate": self.project_rate,
+            "rating": self.rating,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+class Transaction(Base):
+    """Модель финансовых транзакций (доходы и расходы)"""
+    __tablename__ = "transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Тип транзакции
+    transaction_type = Column(String(20), nullable=False)  # income, expense
+    
+    # Привязки
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)  # Привязка к проекту (обязательно для доходов)
+    contractor_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)  # Привязка к исполнителю (для расходов)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Клиент (для доходов)
+    
+    # Финансовые данные
+    amount = Column(Float, nullable=False)  # Сумма транзакции
+    currency = Column(String(10), default="RUB")  # Валюта
+    
+    # Категоризация
+    category = Column(String(100), nullable=True)  # Категория (зарплата, реклама, офис, налоги и т.д.)
+    subcategory = Column(String(100), nullable=True)  # Подкатегория
+    
+    # Детали транзакции
+    description = Column(Text, nullable=True)  # Описание/комментарий
+    payment_method = Column(String(50), nullable=True)  # Способ оплаты (bank, card, cash, crypto)
+    reference_number = Column(String(100), nullable=True)  # Номер платежа/счета
+    
+    # Статус и даты
+    status = Column(String(20), default="completed")  # pending, completed, cancelled
+    transaction_date = Column(DateTime, nullable=False)  # Дата транзакции
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Кто создал транзакцию
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    
+    # Метаданные
+    transaction_metadata = Column(JSON, default=lambda: {})  # Дополнительные данные
+    
+    # Связи
+    project = relationship("Project", backref="transactions")
+    contractor = relationship("AdminUser", foreign_keys=[contractor_id])
+    user = relationship("User", backref="transactions")
+    created_by = relationship("AdminUser", foreign_keys=[created_by_id])
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "transaction_type": self.transaction_type,
+            "project_id": self.project_id,
+            "contractor_id": self.contractor_id,
+            "user_id": self.user_id,
+            "amount": self.amount,
+            "currency": self.currency,
+            "category": self.category,
+            "subcategory": self.subcategory,
+            "description": self.description,
+            "payment_method": self.payment_method,
+            "reference_number": self.reference_number,
+            "status": self.status,
+            "transaction_date": self.transaction_date.isoformat() if self.transaction_date else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_by_id": self.created_by_id,
+            "transaction_metadata": self.transaction_metadata
+        }
+    
+    @property
+    def is_income(self):
+        return self.transaction_type == "income"
+    
+    @property
+    def is_expense(self):
+        return self.transaction_type == "expense"
+
+
+class ExpenseCategory(Base):
+    """Модель категорий расходов"""
+    __tablename__ = "expense_categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)  # Название категории
+    description = Column(Text, nullable=True)  # Описание
+    color = Column(String(20), nullable=True)  # Цвет для отображения
+    icon = Column(String(50), nullable=True)  # Иконка
+    is_active = Column(Boolean, default=True)  # Активна ли категория
+    order_index = Column(Integer, default=0)  # Порядок отображения
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "color": self.color,
+            "icon": self.icon,
+            "is_active": self.is_active,
+            "order_index": self.order_index,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class ContractorPayment(Base):
+    """Модель выплат исполнителям"""
+    __tablename__ = "contractor_payments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    contractor_id = Column(Integer, ForeignKey("contractors.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    amount = Column(Float, nullable=False)
+    payment_type = Column(String(50), default="project")  # hourly, project, bonus
+    description = Column(Text, nullable=True)
+    payment_date = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(50), default="pending")  # pending, paid, cancelled
+    payment_method = Column(String(100), nullable=True)  # card, bank_transfer, etc.
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    
+    # Связи
+    contractor = relationship("Contractor", back_populates="payments")
+    project = relationship("Project")
+    created_by = relationship("AdminUser")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "contractor_id": self.contractor_id,
+            "project_id": self.project_id,
+            "amount": self.amount,
+            "payment_type": self.payment_type,
+            "description": self.description,
+            "payment_date": self.payment_date.isoformat() if self.payment_date else None,
+            "status": self.status,
+            "payment_method": self.payment_method,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "contractor": self.contractor.to_dict() if self.contractor else None,
+            "project": self.project.to_dict() if self.project else None
+        }
+
+class ServiceProvider(Base):
+    """Модель поставщика услуг (нейросети, хостинг, etc.)"""
+    __tablename__ = "service_providers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    provider_type = Column(String(100), nullable=False)  # ai, hosting, payment, etc.
+    website = Column(String(500), nullable=True)
+    contact_info = Column(JSON, default=lambda: {})
+    pricing_model = Column(String(100), nullable=True)  # monthly, usage, per_request
+    status = Column(String(50), default="active")  # active, inactive
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Связи
+    expenses = relationship("ServiceExpense", back_populates="service_provider")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "provider_type": self.provider_type,
+            "website": self.website,
+            "contact_info": self.contact_info,
+            "pricing_model": self.pricing_model,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+class ServiceExpense(Base):
+    """Модель расходов на сервисы"""
+    __tablename__ = "service_expenses"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    service_provider_id = Column(Integer, ForeignKey("service_providers.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    amount = Column(Float, nullable=False)
+    expense_type = Column(String(100), nullable=False)  # subscription, usage, one_time
+    description = Column(Text, nullable=True)
+    expense_date = Column(DateTime, default=datetime.utcnow)
+    period_start = Column(DateTime, nullable=True)  # для подписок
+    period_end = Column(DateTime, nullable=True)    # для подписок
+    usage_details = Column(JSON, default=lambda: {})  # детали использования
+    invoice_url = Column(String(500), nullable=True)
+    status = Column(String(50), default="active")  # active, cancelled
+    is_recurring = Column(Boolean, default=False)
+    recurring_period = Column(String(50), nullable=True)  # monthly, yearly
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    
+    # Связи
+    service_provider = relationship("ServiceProvider", back_populates="expenses")
+    project = relationship("Project")
+    created_by = relationship("AdminUser")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "service_provider_id": self.service_provider_id,
+            "project_id": self.project_id,
+            "amount": self.amount,
+            "expense_type": self.expense_type,
+            "description": self.description,
+            "expense_date": self.expense_date.isoformat() if self.expense_date else None,
+            "period_start": self.period_start.isoformat() if self.period_start else None,
+            "period_end": self.period_end.isoformat() if self.period_end else None,
+            "usage_details": self.usage_details,
+            "invoice_url": self.invoice_url,
+            "status": self.status,
+            "is_recurring": self.is_recurring,
+            "recurring_period": self.recurring_period,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "service_provider": self.service_provider.to_dict() if self.service_provider else None,
+            "project": self.project.to_dict() if self.project else None
+        }
+
+class FinanceReport(Base):
+    """Модель финансовых отчетов"""
+    __tablename__ = "finance_reports"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    report_type = Column(String(100), nullable=False)  # monthly, quarterly, yearly, custom
+    period_start = Column(DateTime, nullable=False)
+    period_end = Column(DateTime, nullable=False)
+    data = Column(JSON, default=lambda: {})  # данные отчета
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    
+    # Связи
+    created_by = relationship("AdminUser")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "report_type": self.report_type,
+            "period_start": self.period_start.isoformat() if self.period_start else None,
+            "period_end": self.period_end.isoformat() if self.period_end else None,
+            "data": self.data,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by.to_dict() if self.created_by else None
+        }
+
+# Модели для системы правок проектов
+
+class ProjectRevision(Base):
+    """Модель правок проекта"""
+    __tablename__ = "project_revisions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    revision_number = Column(Integer, nullable=False)  # Номер правки
+    title = Column(String(500), nullable=False)  # Заголовок правки
+    description = Column(Text, nullable=False)  # Описание проблемы
+    status = Column(String(50), default="pending")  # pending, in_progress, completed, rejected
+    priority = Column(String(20), default="normal")  # low, normal, high, urgent
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Кто создал правку (клиент)
+    assigned_to_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)  # Исполнитель
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)  # Когда правка была выполнена
+    estimated_time = Column(Integer, nullable=True)  # Оценочное время на исправление (в часах)
+    actual_time = Column(Integer, nullable=True)  # Фактическое время
+
+    # Прогресс и таймер
+    progress = Column(Integer, default=0)  # Процент выполнения (0-100)
+    time_spent_seconds = Column(Integer, default=0)  # Время работы в секундах
+    timer_started_at = Column(DateTime, nullable=True)  # Когда запущен таймер
+
+    # Связи
+    project = relationship("Project", back_populates="revisions")
+    created_by = relationship("User", back_populates="created_revisions")
+    assigned_to = relationship("AdminUser", back_populates="assigned_revisions")
+    messages = relationship("RevisionMessage", back_populates="revision")
+    files = relationship("RevisionFile", back_populates="revision")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "revision_number": self.revision_number,
+            "title": self.title,
+            "description": self.description,
+            "status": self.status,
+            "priority": self.priority,
+            "created_by_id": self.created_by_id,
+            "assigned_to_id": self.assigned_to_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "estimated_time": self.estimated_time,
+            "actual_time": self.actual_time,
+            "progress": self.progress if hasattr(self, 'progress') else 0,
+            "time_spent_seconds": self.time_spent_seconds if hasattr(self, 'time_spent_seconds') else 0,
+            "timer_started_at": self.timer_started_at.isoformat() if hasattr(self, 'timer_started_at') and self.timer_started_at else None,
+            "created_by": self.created_by.to_dict() if self.created_by else None,
+            "assigned_to": self.assigned_to.to_dict() if self.assigned_to else None,
+            "messages_count": len(self.messages) if self.messages else 0,
+            "files_count": len(self.files) if self.files else 0
+        }
+
+class RevisionMessage(Base):
+    """Модель сообщений в правках"""
+    __tablename__ = "revision_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    revision_id = Column(Integer, ForeignKey("project_revisions.id"), nullable=False)
+    sender_type = Column(String(20), nullable=False)  # client, executor, admin
+    sender_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Если отправитель - клиент
+    sender_admin_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)  # Если отправитель - админ/исполнитель
+    message = Column(Text, nullable=False)
+    is_internal = Column(Boolean, default=False)  # Внутреннее сообщение (только для команды)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Связи
+    revision = relationship("ProjectRevision", back_populates="messages")
+    sender_user = relationship("User")
+    sender_admin = relationship("AdminUser")
+    files = relationship("RevisionMessageFile", back_populates="message")
+    
+    def to_dict(self):
+        sender_name = "Неизвестно"
+        if self.sender_type == "client" and self.sender_user:
+            sender_name = self.sender_user.first_name or "Клиент"
+        elif self.sender_type in ["executor", "admin"] and self.sender_admin:
+            sender_name = self.sender_admin.username or "Команда"
+            
+        return {
+            "id": self.id,
+            "revision_id": self.revision_id,
+            "sender_type": self.sender_type,
+            "sender_name": sender_name,
+            "message": self.message,
+            "is_internal": self.is_internal,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "files": [file.to_dict() for file in self.files] if self.files else []
+        }
+
+class RevisionFile(Base):
+    """Модель файлов правок (скриншоты, документы)"""
+    __tablename__ = "revision_files"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    revision_id = Column(Integer, ForeignKey("project_revisions.id"), nullable=False)
+    filename = Column(String(500), nullable=False)
+    original_filename = Column(String(500), nullable=False)
+    file_type = Column(String(100), nullable=False)  # image, document, video
+    file_size = Column(Integer, nullable=False)
+    file_path = Column(String(1000), nullable=False)
+    uploaded_by_type = Column(String(20), nullable=False)  # client, executor, admin
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    uploaded_by_admin_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    description = Column(Text, nullable=True)  # Описание файла
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Связи
+    revision = relationship("ProjectRevision", back_populates="files")
+    uploaded_by_user = relationship("User")
+    uploaded_by_admin = relationship("AdminUser")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "revision_id": self.revision_id,
+            "filename": self.filename,
+            "original_filename": self.original_filename,
+            "file_type": self.file_type,
+            "file_size": self.file_size,
+            "file_path": self.file_path,
+            "uploaded_by_type": self.uploaded_by_type,
+            "description": self.description,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+class RevisionMessageFile(Base):
+    """Модель файлов в сообщениях правок"""
+    __tablename__ = "revision_message_files"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("revision_messages.id"), nullable=False)
+    filename = Column(String(500), nullable=False)
+    original_filename = Column(String(500), nullable=False)
+    file_type = Column(String(100), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    file_path = Column(String(1000), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Связи
+    message = relationship("RevisionMessage", back_populates="files")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "message_id": self.message_id,
+            "filename": self.filename,
+            "original_filename": self.original_filename,
+            "file_type": self.file_type,
+            "file_size": self.file_size,
+            "file_path": self.file_path,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+# Модели для системы планировщика задач
+
+class Task(Base):
+    """Модель задач для сотрудников"""
+    __tablename__ = "tasks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(500), nullable=False)  # Заголовок задачи
+    description = Column(Text, nullable=True)  # Описание задачи
+    status = Column(String(50), default="pending")  # pending, in_progress, completed, cancelled
+    priority = Column(String(20), default="normal")  # low, normal, high, urgent
+    color = Column(String(20), default="normal")  # normal, red, yellow, green - цвет карточки
+    tags = Column(JSON, default=lambda: [])  # Теги задачи (массив строк)
+
+    # Назначение и создание
+    assigned_to_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)  # Исполнитель
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)  # Кто создал
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)  # Связь с проектом (опционально)
+
+    # Временные рамки
+    deadline = Column(DateTime, nullable=True)  # Дедлайн
+    estimated_hours = Column(Integer, nullable=True)  # Оценочное время в часах
+    actual_hours = Column(Integer, nullable=True)  # Фактическое время
+
+    # Прогресс и таймер
+    progress = Column(Integer, default=0)  # Процент выполнения (0-100)
+    time_spent_seconds = Column(Integer, default=0)  # Время работы в секундах
+    timer_started_at = Column(DateTime, nullable=True)  # Когда запущен таймер
+
+    # Ссылка на деплой (для отслеживания прогресса разработки)
+    deploy_url = Column(String(1000), nullable=True)  # Ссылка на задеплоенное приложение
+
+    # Системные поля
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)  # Время завершения
+
+    # Дополнительные данные
+    task_metadata = Column(JSON, default=lambda: {})  # Дополнительная информация
+    
+    # Связи
+    assigned_to = relationship("AdminUser", foreign_keys=[assigned_to_id], back_populates="assigned_tasks")
+    created_by = relationship("AdminUser", foreign_keys=[created_by_id], back_populates="created_tasks")
+    project = relationship("Project", back_populates="tasks")
+    comments = relationship("TaskComment", back_populates="task")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "status": self.status,
+            "priority": self.priority,
+            "color": self.color,
+            "tags": self.tags or [],
+            "assigned_to_id": self.assigned_to_id,
+            "created_by_id": self.created_by_id,
+            "project_id": self.project_id,
+            "deadline": self.deadline.isoformat() if self.deadline else None,
+            "estimated_hours": self.estimated_hours,
+            "actual_hours": self.actual_hours,
+            "progress": self.progress or 0,
+            "time_spent_seconds": self.time_spent_seconds or 0,
+            "timer_started_at": self.timer_started_at.isoformat() if self.timer_started_at else None,
+            "deploy_url": self.deploy_url,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "task_metadata": self.task_metadata,
+            "assigned_to": self.assigned_to.to_dict() if self.assigned_to else None,
+            "created_by": self.created_by.to_dict() if self.created_by else None,
+            "comments_count": len(self.comments) if self.comments else 0
+        }
+    
+    @property
+    def is_overdue(self):
+        """Проверить, просрочена ли задача"""
+        if self.status == "completed" or not self.deadline:
+            return False
+        return datetime.utcnow() > self.deadline
+    
+    @property
+    def days_until_deadline(self):
+        """Количество дней до дедлайна"""
+        if not self.deadline:
+            return None
+        delta = self.deadline - datetime.utcnow()
+        return delta.days
+    
+    @property
+    def comments_count(self):
+        """Количество комментариев к задаче"""
+        return len(self.comments) if self.comments else 0
+
+class TaskComment(Base):
+    """Модель комментариев к задачам"""
+    __tablename__ = "task_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
+    author_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)  # Автор комментария
+    comment = Column(Text, nullable=False)  # Текст комментария
+    comment_type = Column(String(50), default="general")  # general, status_change, deadline_change
+    is_internal = Column(Boolean, default=False)  # Внутренний комментарий (только для команды)
+    attachments = Column(JSON, default=lambda: [])  # Прикрепленные файлы/скриншоты [{"filename": "...", "path": "...", "type": "image"}]
+    is_read = Column(Boolean, default=False)  # Прочитан ли комментарий
+    read_by = Column(JSON, default=lambda: [])  # Список ID пользователей, прочитавших комментарий
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Связи
+    task = relationship("Task", back_populates="comments")
+    author = relationship("AdminUser", back_populates="task_comments")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "task_id": self.task_id,
+            "author_id": self.author_id,
+            "comment": self.comment,
+            "comment_type": self.comment_type,
+            "is_internal": self.is_internal,
+            "attachments": self.attachments or [],
+            "is_read": self.is_read,
+            "read_by": self.read_by or [],
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "author": self.author.to_dict() if self.author else None
+        }
+
+# Модели для системы учета средств с OCR распознаванием чеков
+
+class MoneyTransaction(Base):
+    """Модель финансовых транзакций главного админа"""
+    __tablename__ = "money_transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    amount = Column(Float, nullable=False)  # Сумма
+    type = Column(String(20), nullable=False)  # income или expense
+    category = Column(String(100), nullable=False)  # Категория транзакции
+    description = Column(Text, nullable=True)  # Описание
+    date = Column(DateTime, nullable=False)  # Дата транзакции
+    
+    # OCR данные
+    receipt_file_path = Column(String(500), nullable=True)  # Путь к файлу чека
+    ocr_data = Column(JSON, default=lambda: {})  # Данные от OCR (сумма, дата, магазин и т.д.)
+    is_ocr_processed = Column(Boolean, default=False)  # Обработан ли OCR
+    
+    # Метаданные
+    notes = Column(Text, nullable=True)  # Дополнительные заметки
+    source = Column(String(50), default="manual")  # manual, ocr, api
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)
+    
+    # Связи
+    created_by = relationship("AdminUser", foreign_keys=[created_by_id])
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "amount": self.amount,
+            "type": self.type,
+            "category": self.category,
+            "description": self.description,
+            "date": self.date.isoformat() if self.date else None,
+            "receipt_file_path": self.receipt_file_path,
+            "ocr_data": self.ocr_data,
+            "is_ocr_processed": self.is_ocr_processed,
+            "notes": self.notes,
+            "source": self.source,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_by": self.created_by.to_dict() if self.created_by else None
+        }
+
+class MoneyCategory(Base):
+    """Модель категорий доходов/расходов"""
+    __tablename__ = "money_categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)  # Название категории
+    type = Column(String(20), nullable=False)  # income или expense
+    description = Column(Text, nullable=True)  # Описание
+    color = Column(String(7), default="#6c757d")  # Цвет для графиков (HEX)
+    icon = Column(String(50), default="fas fa-circle")  # FontAwesome иконка
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)  # Порядок сортировки
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)
+    
+    # Связи
+    created_by = relationship("AdminUser", foreign_keys=[created_by_id])
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "type": self.type,
+            "description": self.description,
+            "color": self.color,
+            "icon": self.icon,
+            "is_active": self.is_active,
+            "sort_order": self.sort_order,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by.to_dict() if self.created_by else None
+        }
+
+class ReceiptFile(Base):
+    """Модель файлов чеков для OCR обработки"""
+    __tablename__ = "receipt_files"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String(255), nullable=False)  # Имя файла
+    original_filename = Column(String(255), nullable=False)  # Оригинальное имя
+    file_path = Column(String(500), nullable=False)  # Путь к файлу
+    file_size = Column(Integer, nullable=False)  # Размер файла в байтах
+    file_type = Column(String(50), nullable=False)  # jpg, png, pdf и т.д.
+    
+    # OCR статус
+    ocr_status = Column(String(50), default="pending")  # pending, processing, completed, failed
+    ocr_result = Column(JSON, default=lambda: {})  # Результат OCR
+    ocr_confidence = Column(Float, nullable=True)  # Уверенность OCR (0-1)
+    ocr_error = Column(Text, nullable=True)  # Ошибка OCR
+    
+    # Связь с транзакцией
+    transaction_id = Column(Integer, ForeignKey("money_transactions.id"), nullable=True)
+    
+    # Метаданные
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    processed_at = Column(DateTime, nullable=True)  # Когда обработан OCR
+    uploaded_by_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)
+    
+    # Связи
+    uploaded_by = relationship("AdminUser", foreign_keys=[uploaded_by_id])
+    transaction = relationship("MoneyTransaction", foreign_keys=[transaction_id])
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "filename": self.filename,
+            "original_filename": self.original_filename,
+            "file_path": self.file_path,
+            "file_size": self.file_size,
+            "file_type": self.file_type,
+            "ocr_status": self.ocr_status,
+            "ocr_result": self.ocr_result,
+            "ocr_confidence": self.ocr_confidence,
+            "ocr_error": self.ocr_error,
+            "transaction_id": self.transaction_id,
+            "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
+            "processed_at": self.processed_at.isoformat() if self.processed_at else None,
+            "uploaded_by": self.uploaded_by.to_dict() if self.uploaded_by else None
+        }
+
+# Обновляем связи существующих моделей
+AdminUser.assigned_tasks = relationship("Task", foreign_keys="[Task.assigned_to_id]", back_populates="assigned_to")
+AdminUser.created_tasks = relationship("Task", foreign_keys="[Task.created_by_id]", back_populates="created_by")
+AdminUser.task_comments = relationship("TaskComment", back_populates="author")
+Project.revisions = relationship("ProjectRevision", back_populates="project")
+User.created_revisions = relationship("ProjectRevision", back_populates="created_by")
+
+# TODO: Добавить миграцию для этой таблицы
+# class AdminActivityLog(Base):
+#     """Модель для логирования активности админов и исполнителей"""
+#     __tablename__ = "admin_activity_logs"
+#     
+#     id = Column(Integer, primary_key=True, index=True)
+#     user_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)
+#     action = Column(String(100), nullable=False)  # login, logout, view_project, edit_project, etc.
+#     action_type = Column(String(50), nullable=False)  # view, create, update, delete
+#     entity_type = Column(String(50), nullable=True)  # project, task, user, etc.
+#     entity_id = Column(Integer, nullable=True)  # ID сущности
+#     details = Column(JSON, nullable=True)  # Дополнительные детали
+#     ip_address = Column(String(50), nullable=True)
+#     user_agent = Column(String(500), nullable=True)
+#     created_at = Column(DateTime, default=datetime.utcnow)
+#     
+#     # Связи
+#     # user = relationship("AdminUser", back_populates="activity_logs")
+#     
+#     def to_dict(self):
+#         return {
+#             "id": self.id,
+#             "user_id": self.user_id,
+#             "action": self.action,
+#             "action_type": self.action_type,
+#             "entity_type": self.entity_type,
+#             "entity_id": self.entity_id,
+#             "details": self.details,
+#             "ip_address": self.ip_address,
+#             "user_agent": self.user_agent,
+#             "created_at": self.created_at.isoformat() if self.created_at else None
+#         }
+
+class TaskDeadlineNotification(Base):
+    """Модель для отслеживания отправленных уведомлений о дедлайнах задач"""
+    __tablename__ = "task_deadline_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
+    notification_type = Column(String(50), nullable=False)  # "24h_before", "4h_before", "1h_before", "overdue", "daily_overdue"
+    sent_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    deadline_at = Column(DateTime, nullable=False)  # Дедлайн задачи на момент отправки
+
+    # Связи
+    task = relationship("Task")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "task_id": self.task_id,
+            "notification_type": self.notification_type,
+            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
+            "deadline_at": self.deadline_at.isoformat() if self.deadline_at else None
+        }
+
+# === TIMEWEB HOSTING: Управление арендой серверов ===
+
+class HostingServer(Base):
+    """Модель для учета серверов в аренде"""
+    __tablename__ = "hosting_servers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)  # Связь с проектом
+    client_id = Column(Integer, nullable=True, index=True)  # ID клиента (группировка серверов)
+    client_name = Column(String(255), nullable=False)  # Имя клиента
+    client_company = Column(String(255), nullable=True)  # Компания клиента
+    client_telegram_id = Column(BigInteger, nullable=True)  # Telegram ID для уведомлений
+
+    # Информация о сервере
+    server_name = Column(String(255), nullable=False)  # Название/ID сервера
+    configuration = Column(Text, nullable=True)  # Конфигурация (CPU, RAM, SSD)
+    ip_address = Column(String(50), nullable=True)
+
+    # Финансы
+    cost_price = Column(Float, nullable=False, default=0)  # Себестоимость (₽/мес)
+    client_price = Column(Float, nullable=False)  # Цена для клиента (₽/мес)
+    service_fee = Column(Float, default=0)  # Стоимость обслуживания (₽/мес)
+
+    # Баланс и предоплата
+    balance = Column(Float, default=0.0)  # Текущий баланс клиента (₽)
+    balance_last_updated = Column(DateTime, nullable=True)  # Дата последнего изменения баланса
+
+    # Даты и периодичность
+    start_date = Column(DateTime, nullable=False)  # Дата начала аренды
+    next_payment_date = Column(DateTime, nullable=False)  # Следующий платеж
+    payment_period = Column(String(20), default="monthly")  # monthly, quarterly, yearly
+
+    # Статус
+    status = Column(String(20), default="active")  # active, overdue, suspended, closed
+
+    # Интеграция с Timeweb Cloud
+    timeweb_id = Column(BigInteger, nullable=True, unique=True, index=True)  # ID сервера в Timeweb
+    timeweb_status = Column(String(50), nullable=True)  # Статус в Timeweb (on, off, etc.)
+    timeweb_preset_id = Column(Integer, nullable=True)  # ID тарифа в Timeweb
+    timeweb_data = Column(Text, nullable=True)  # JSON с полными данными из Timeweb API
+    auto_sync = Column(Boolean, default=False)  # Автоматическая синхронизация с Timeweb
+    last_sync_at = Column(DateTime, nullable=True)  # Дата последней синхронизации
+
+    # Дополнительно
+    notes = Column(Text, nullable=True)  # Заметки
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Связи
+    project = relationship("Project", foreign_keys=[project_id], backref="hosting_servers")
+    # client = relationship("Client", foreign_keys=[client_id], backref="hosting_servers")  # TODO: Create Client model
+    payments = relationship("HostingPayment", back_populates="server", cascade="all, delete-orphan")
+
+    def calculate_profit(self):
+        """Рассчитать прибыль"""
+        total_price = self.client_price + (self.service_fee or 0)
+        profit_amount = total_price - self.cost_price
+        profit_percent = (profit_amount / self.cost_price * 100) if self.cost_price > 0 else 0
+        return {
+            "amount": round(profit_amount, 2),
+            "percent": round(profit_percent, 2)
+        }
+
+    def calculate_days_remaining(self):
+        """Рассчитать количество дней, на которые хватит баланса"""
+        if not self.balance or self.balance <= 0:
+            return 0
+
+        # Общая стоимость в месяц
+        monthly_cost = self.client_price + (self.service_fee or 0)
+        if monthly_cost <= 0:
+            return 0
+
+        # Стоимость за день (месяц = 30 дней)
+        daily_cost = monthly_cost / 30.0
+
+        # Количество дней, на которые хватит баланса
+        days_remaining = self.balance / daily_cost
+
+        return round(days_remaining, 1)
+
+    def get_payment_calendar(self, months_ahead=6):
+        """Сформировать календарь платежей на N месяцев вперед"""
+        from datetime import timedelta
+
+        calendar = []
+        monthly_cost = self.client_price + (self.service_fee or 0)
+        current_balance = self.balance or 0
+        current_date = datetime.utcnow()
+
+        for month in range(months_ahead):
+            payment_date = current_date + timedelta(days=30 * month)
+
+            # Рассчитываем, хватит ли баланса на этот месяц
+            if current_balance >= monthly_cost:
+                status = "paid"
+                current_balance -= monthly_cost
+            elif current_balance > 0:
+                status = "partial"
+                shortage = monthly_cost - current_balance
+                current_balance = 0
+            else:
+                status = "unpaid"
+                shortage = monthly_cost
+                current_balance = 0
+
+            calendar.append({
+                "month": payment_date.strftime("%B %Y"),
+                "date": payment_date.isoformat(),
+                "amount": monthly_cost,
+                "status": status,
+                "shortage": shortage if status in ["partial", "unpaid"] else 0,
+                "balance_after": current_balance
+            })
+
+        return calendar
+
+    def to_dict(self):
+        profit = self.calculate_profit()
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "client_id": self.client_id,
+            "client_name": self.client_name,
+            "client_company": self.client_company,
+            "client_telegram_id": self.client_telegram_id,
+            "server_name": self.server_name,
+            "configuration": self.configuration,
+            "ip_address": self.ip_address,
+            "cost_price": self.cost_price,
+            "client_price": self.client_price,
+            "service_fee": self.service_fee,
+            "total_price": self.client_price + (self.service_fee or 0),
+            "profit_amount": profit["amount"],
+            "profit_percent": profit["percent"],
+            "balance": self.balance or 0,
+            "balance_last_updated": self.balance_last_updated.isoformat() if self.balance_last_updated else None,
+            "days_remaining": self.calculate_days_remaining(),
+            "start_date": self.start_date.isoformat() if self.start_date else None,
+            "next_payment_date": self.next_payment_date.isoformat() if self.next_payment_date else None,
+            "payment_period": self.payment_period,
+            "status": self.status,
+            "timeweb_id": self.timeweb_id,
+            "timeweb_status": self.timeweb_status,
+            "timeweb_preset_id": self.timeweb_preset_id,
+            "auto_sync": self.auto_sync,
+            "last_sync_at": self.last_sync_at.isoformat() if self.last_sync_at else None,
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class HostingPayment(Base):
+    """Модель для учета платежей за серверы"""
+    __tablename__ = "hosting_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    server_id = Column(Integer, ForeignKey("hosting_servers.id", ondelete="CASCADE"), nullable=False)
+
+    # Информация о платеже
+    amount = Column(Float, nullable=False)  # Сумма платежа
+    payment_date = Column(DateTime, nullable=True)  # Дата получения платежа (null = ожидается)
+    expected_date = Column(DateTime, nullable=False)  # Ожидаемая дата платежа
+
+    # Период оплаты
+    period_start = Column(DateTime, nullable=False)  # Начало периода
+    period_end = Column(DateTime, nullable=False)  # Конец периода
+
+    # Статус и метод
+    status = Column(String(20), default="pending")  # paid, pending, overdue
+    payment_method = Column(String(50), nullable=True)  # Способ оплаты
+
+    # Документы
+    receipt_url = Column(String(500), nullable=True)  # Ссылка на чек/документ
+
+    # Дополнительно
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Связи
+    server = relationship("HostingServer", back_populates="payments")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "server_id": self.server_id,
+            "amount": self.amount,
+            "payment_date": self.payment_date.isoformat() if self.payment_date else None,
+            "expected_date": self.expected_date.isoformat() if self.expected_date else None,
+            "period_start": self.period_start.isoformat() if self.period_start else None,
+            "period_end": self.period_end.isoformat() if self.period_end else None,
+            "status": self.status,
+            "payment_method": self.payment_method,
+            "receipt_url": self.receipt_url,
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class ProjectChat(Base):
+    """Модель чата проекта между клиентом и исполнителем"""
+    __tablename__ = "project_chats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True)
+
+    # Метаданные
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_message_at = Column(DateTime, nullable=True)  # Время последнего сообщения
+    unread_by_executor = Column(Integer, default=0)  # Количество непрочитанных сообщений исполнителем
+    unread_by_client = Column(Integer, default=0)  # Количество непрочитанных сообщений клиентом
+    is_pinned_by_owner = Column(Boolean, default=False)  # Закреплен ли чат руководителем
+    is_hidden_by_owner = Column(Boolean, default=False)  # Скрыт ли чат руководителем
+
+    # Связи
+    project = relationship("Project", backref="chat")
+    messages = relationship("ProjectChatMessage", back_populates="chat", cascade="all, delete-orphan", order_by="ProjectChatMessage.created_at")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "last_message_at": self.last_message_at.isoformat() if self.last_message_at else None,
+            "unread_by_executor": self.unread_by_executor,
+            "unread_by_client": self.unread_by_client,
+            "is_pinned_by_owner": self.is_pinned_by_owner,
+            "is_hidden_by_owner": self.is_hidden_by_owner
+        }
+
+
+class ProjectChatMessage(Base):
+    """Модель сообщения в чате проекта"""
+    __tablename__ = "project_chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(Integer, ForeignKey("project_chats.id", ondelete="CASCADE"), nullable=False)
+
+    # Автор сообщения
+    sender_type = Column(String(20), nullable=False)  # 'client' или 'executor'
+    sender_id = Column(Integer, nullable=True)  # ID пользователя (User.id для клиента, AdminUser.id для исполнителя)
+
+    # Содержимое
+    message_text = Column(Text, nullable=True)  # Текст сообщения
+    attachments = Column(JSON, default=list)  # Прикрепленные файлы [{filename, path, type, size}]
+
+    # Метаданные
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_read_by_executor = Column(Boolean, default=False)  # Прочитано исполнителем
+    is_read_by_client = Column(Boolean, default=False)  # Прочитано клиентом
+    read_at = Column(DateTime, nullable=True)  # Время прочтения
+
+    # Флаг нарушения (попытка поделиться контактами)
+    has_contact_violation = Column(Boolean, default=False)
+    violation_details = Column(Text, nullable=True)  # Детали нарушения
+
+    # Связь с правкой (если сообщение - создание правки)
+    related_revision_id = Column(Integer, ForeignKey("project_revisions.id"), nullable=True)
+
+    # Связи
+    chat = relationship("ProjectChat", back_populates="messages")
+    related_revision = relationship("ProjectRevision", foreign_keys=[related_revision_id])
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "chat_id": self.chat_id,
+            "sender_type": self.sender_type,
+            "sender_id": self.sender_id,
+            "message_text": self.message_text,
+            "attachments": self.attachments,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "is_read_by_executor": self.is_read_by_executor,
+            "is_read_by_client": self.is_read_by_client,
+            "read_at": self.read_at.isoformat() if self.read_at else None,
+            "has_contact_violation": self.has_contact_violation,
+            "violation_details": self.violation_details,
+            "related_revision_id": self.related_revision_id
+        }
+
+
+class ClientBalance(Base):
+    """Модель для учета балансов клиентов"""
+    __tablename__ = "client_balances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, nullable=False, unique=True, index=True)
+    client_name = Column(String(255), nullable=False)
+    client_telegram_id = Column(BigInteger, nullable=True)
+
+    # Баланс и расчеты
+    balance = Column(Float, default=0.0, nullable=False)  # Текущий баланс
+    total_monthly_cost = Column(Float, default=0.0, nullable=False)  # Общая стоимость всех серверов клиента в месяц
+    days_remaining = Column(Integer, default=0)  # Остаток дней на балансе
+
+    # Даты списаний
+    last_charge_date = Column(DateTime, nullable=True)  # Дата последнего списания
+    next_charge_date = Column(DateTime, nullable=True)  # Дата следующего списания
+
+    # Уведомления
+    low_balance_notified = Column(Boolean, default=False)  # Было ли отправлено уведомление о низком балансе
+
+    # Метаданные
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def calculate_days_remaining(self):
+        """Рассчитать количество дней на балансе"""
+        if self.total_monthly_cost <= 0:
+            return 999  # Бесконечно, если нет серверов
+
+        # Месячная стоимость → дневная стоимость
+        daily_cost = self.total_monthly_cost / 30
+
+        if daily_cost <= 0:
+            return 999
+
+        days = int(self.balance / daily_cost)
+        return max(0, days)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "client_id": self.client_id,
+            "client_name": self.client_name,
+            "client_telegram_id": self.client_telegram_id,
+            "balance": self.balance,
+            "total_monthly_cost": self.total_monthly_cost,
+            "days_remaining": self.days_remaining,
+            "last_charge_date": self.last_charge_date.isoformat() if self.last_charge_date else None,
+            "next_charge_date": self.next_charge_date.isoformat() if self.next_charge_date else None,
+            "low_balance_notified": self.low_balance_notified,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class BalanceTransaction(Base):
+    """Модель для истории транзакций баланса"""
+    __tablename__ = "balance_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, nullable=False, index=True)
+    client_name = Column(String(255), nullable=False)
+
+    # Тип транзакции
+    type = Column(String(50), nullable=False, index=True)  # replenish (пополнение), charge (списание), refund (возврат)
+
+    # Суммы
+    amount = Column(Float, nullable=False)  # Сумма транзакции
+    balance_before = Column(Float, nullable=False)  # Баланс до транзакции
+    balance_after = Column(Float, nullable=False)  # Баланс после транзакции
+
+    # Дополнительная информация
+    description = Column(Text, nullable=True)  # Описание транзакции
+    server_id = Column(Integer, nullable=True)  # ID сервера (для списаний)
+    server_name = Column(String(255), nullable=True)  # Название сервера
+
+    # Метаданные
+    created_by = Column(String(100), nullable=True)  # Кто создал транзакцию
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "client_id": self.client_id,
+            "client_name": self.client_name,
+            "type": self.type,
+            "amount": self.amount,
+            "balance_before": self.balance_before,
+            "balance_after": self.balance_after,
+            "description": self.description,
+            "server_id": self.server_id,
+            "server_name": self.server_name,
+            "created_by": self.created_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+
+# === CRM AUTO-SYNC: Автоматическое создание клиента при создании пользователя ===
+from sqlalchemy import event
+
+@event.listens_for(User, 'after_insert')
+def create_crm_client_for_user(mapper, connection, target):
+    """Автоматически создаёт CRM клиента при создании нового пользователя"""
+    try:
+        from .crm_models import Client, ClientType, ClientStatus
+        from sqlalchemy.orm import Session
+        from datetime import datetime
+        
+        # Создаём сессию из connection
+        session = Session(bind=connection)
+        
+        # Проверяем есть ли уже клиент
+        existing = session.query(Client).filter(Client.telegram_user_id == target.id).first()
+        if existing:
+            return
+        
+        # Создаём клиента
+        client = Client(
+            name=target.first_name or target.username or f"Клиент {target.id}",
+            type=ClientType.INDIVIDUAL,
+            status=ClientStatus.NEW,
+            phone=target.phone,
+            telegram=f"@{target.username}" if target.username else None,
+            source="auto_user_creation",
+            description="Создан автоматически при регистрации пользователя",
+            telegram_user_id=target.id,
+            manager_id=1,
+            created_by_id=1,
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        session.add(client)
+        session.commit()
+        
+        print(f"✅ [AUTO-CRM] Создан клиент для user_id={target.id}")
+    except Exception as e:
+        print(f"❌ [AUTO-CRM] Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
