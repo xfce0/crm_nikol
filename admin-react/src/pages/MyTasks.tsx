@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import myTasksApi from '../api/myTasks'
-import type { MyTask, TasksByStatus, Executor } from '../api/myTasks'
+import type { MyTask, TasksByStatus, Executor, TaskComment } from '../api/myTasks'
 
 interface Toast {
   id: number
@@ -29,6 +29,17 @@ export const MyTasks = () => {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [selectedTask, setSelectedTask] = useState<MyTask | null>(null)
+
+  // Comment states
+  const [comments, setComments] = useState<TaskComment[]>([])
+  const [newComment, setNewComment] = useState('')
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
+  const [isInternal, setIsInternal] = useState(false)
+  const [commentLoading, setCommentLoading] = useState(false)
+
+  // Progress state
+  const [progress, setProgress] = useState(0)
 
   // Form states
   const [formData, setFormData] = useState({
@@ -271,9 +282,114 @@ export const MyTasks = () => {
     const response = await myTasksApi.getTask(taskId)
     if (response.success && response.task) {
       setSelectedTask(response.task)
+      setProgress(response.task.progress || 0)
       setShowViewModal(true)
+      // Load comments
+      await loadComments(taskId)
     } else {
       showToast(response.message || 'Ошибка загрузки задачи', 'error')
+    }
+  }
+
+  const loadComments = async (taskId: number) => {
+    try {
+      const response = await myTasksApi.getComments(taskId)
+      if (response.success) {
+        setComments(response.comments)
+      }
+    } catch (error) {
+      console.error('Error loading comments:', error)
+    }
+  }
+
+  const handleAddComment = async () => {
+    if (!selectedTask || (!newComment.trim() && selectedFiles.length === 0)) return
+
+    try {
+      setCommentLoading(true)
+      const response = await myTasksApi.addComment(selectedTask.id, newComment, isInternal, selectedFiles)
+
+      if (response.success) {
+        setNewComment('')
+        setSelectedFiles([])
+        previewUrls.forEach(url => URL.revokeObjectURL(url))
+        setPreviewUrls([])
+        setIsInternal(false)
+        await loadComments(selectedTask.id)
+        showToast('Комментарий добавлен', 'success')
+      } else {
+        showToast(response.error || 'Ошибка добавления комментария', 'error')
+      }
+    } catch (error: any) {
+      let errorMessage = 'Ошибка добавления комментария'
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Превышено время ожидания. Попробуйте загрузить файлы меньшего размера.'
+      }
+      showToast(errorMessage, 'error')
+    } finally {
+      setCommentLoading(false)
+    }
+  }
+
+  const handleProgressChange = async (newProgress: number) => {
+    if (!selectedTask) return
+
+    try {
+      const response = await myTasksApi.updateProgress(selectedTask.id, newProgress)
+      if (response.success) {
+        setProgress(newProgress)
+        showToast('Прогресс обновлен', 'success')
+      }
+    } catch (error) {
+      console.error('Error updating progress:', error)
+      showToast('Ошибка обновления прогресса', 'error')
+    }
+  }
+
+  const handleFilesAdded = (newFiles: File[]) => {
+    const updatedFiles = [...selectedFiles, ...newFiles]
+    setSelectedFiles(updatedFiles)
+
+    const newPreviewUrls: string[] = []
+    newFiles.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file)
+        newPreviewUrls.push(url)
+      }
+    })
+    setPreviewUrls([...previewUrls, ...newPreviewUrls])
+  }
+
+  const handleRemoveFile = (index: number) => {
+    const updatedFiles = selectedFiles.filter((_, i) => i !== index)
+    setSelectedFiles(updatedFiles)
+
+    if (previewUrls[index]) {
+      URL.revokeObjectURL(previewUrls[index])
+    }
+    const updatedPreviews = previewUrls.filter((_, i) => i !== index)
+    setPreviewUrls(updatedPreviews)
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    const files: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile()
+        if (file) {
+          const timestamp = new Date().getTime()
+          const newFile = new File([file], `screenshot-${timestamp}.png`, { type: file.type })
+          files.push(newFile)
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      handleFilesAdded(files)
     }
   }
 
@@ -743,21 +859,92 @@ export const MyTasks = () => {
       {/* View Task Modal */}
       {showViewModal && selectedTask && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`${currentTheme.card} rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto`}>
-            <div className="p-6 border-b border-gray-200">
-              <h2 className={`text-2xl font-bold ${currentTheme.text}`}>{selectedTask.title}</h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <strong className={currentTheme.text}>Описание:</strong>
-                <p className="text-gray-600 mt-1">{selectedTask.description || 'Нет описания'}</p>
+          <div className={`${currentTheme.card} rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col`}>
+            {/* Header */}
+            <div className="p-6 border-b border-gray-200 flex-shrink-0">
+              <div className="flex items-start justify-between gap-4">
+                <h2 className={`text-2xl font-bold ${currentTheme.text}`}>{selectedTask.title}</h2>
+                <button
+                  onClick={() => {
+                    setShowViewModal(false)
+                    setSelectedTask(null)
+                    setComments([])
+                    setNewComment('')
+                    setSelectedFiles([])
+                    setPreviewUrls([])
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <strong className={currentTheme.text}>Статус:</strong>
-                  <div className="mt-1">
-                    <span className={`px-3 py-1 rounded-full text-sm ${
+            {/* Body - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Description */}
+              {selectedTask.description && (
+                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl p-4 border border-blue-200">
+                  <h4 className="font-bold text-gray-900 mb-2">Описание</h4>
+                  <p className="text-gray-800 text-sm whitespace-pre-wrap">{selectedTask.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Progress Card */}
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-700">
+                      <path d="M16 7h6v6"></path>
+                      <path d="m22 7-8.5 8.5-5-5L2 17"></path>
+                    </svg>
+                    <h4 className="font-bold text-gray-900">Прогресс</h4>
+                  </div>
+                  <div className="text-center mb-3">
+                    <span className={`text-3xl font-bold ${
+                      progress < 25 ? 'text-red-600' :
+                      progress < 50 ? 'text-orange-600' :
+                      progress < 75 ? 'text-yellow-600' :
+                      progress < 100 ? 'text-blue-600' :
+                      'text-green-600'
+                    }`}>{progress}%</span>
+                  </div>
+                  <div className="relative w-full">
+                    <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full transition-all duration-500 ease-out"
+                        style={{
+                          width: `${progress}%`,
+                          background: progress < 25
+                            ? 'linear-gradient(90deg, #ef4444, #f87171)'
+                            : progress < 50
+                            ? 'linear-gradient(90deg, #f97316, #fb923c)'
+                            : progress < 75
+                            ? 'linear-gradient(90deg, #eab308, #fde047)'
+                            : progress < 100
+                            ? 'linear-gradient(90deg, #3b82f6, #60a5fa)'
+                            : 'linear-gradient(90deg, #22c55e, #4ade80)',
+                        }}
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={progress}
+                      onChange={(e) => handleProgressChange(parseInt(e.target.value))}
+                      className="absolute top-0 left-0 w-full h-3 appearance-none cursor-pointer bg-transparent opacity-0"
+                      disabled={selectedTask.status === 'completed'}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1 text-center">Перетащите для изменения</p>
+                </div>
+
+                {/* Status & Priority */}
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-200">
+                    <strong className="text-gray-900 block mb-2">Статус:</strong>
+                    <span className={`px-3 py-1 rounded-full text-sm inline-block ${
                       selectedTask.status === 'completed' ? 'bg-green-100 text-green-800' :
                       selectedTask.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
                       'bg-yellow-100 text-yellow-800'
@@ -765,50 +952,219 @@ export const MyTasks = () => {
                       {getStatusLabel(selectedTask.status)}
                     </span>
                   </div>
-                </div>
-                <div>
-                  <strong className={currentTheme.text}>Приоритет:</strong>
-                  <div className="mt-1">
-                    <span className={`px-3 py-1 rounded-full text-sm ${getPriorityBadgeColor(selectedTask.priority)}`}>
+                  <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200">
+                    <strong className="text-gray-900 block mb-2">Приоритет:</strong>
+                    <span className={`px-3 py-1 rounded-full text-sm inline-block ${getPriorityBadgeColor(selectedTask.priority)}`}>
                       {getPriorityLabel(selectedTask.priority)}
                     </span>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <strong className={currentTheme.text}>Исполнитель:</strong>
-                  <p className="text-gray-600 mt-1">{selectedTask.assigned_to_name || 'Не назначен'}</p>
+                {/* Executor */}
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                  <strong className="text-gray-900 block mb-2">Исполнитель:</strong>
+                  <p className="text-gray-800">{selectedTask.assigned_to_name || 'Не назначен'}</p>
                 </div>
-                <div>
-                  <strong className={currentTheme.text}>Создатель:</strong>
-                  <p className="text-gray-600 mt-1">
+
+                {/* Creator */}
+                <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-xl p-4 border border-slate-200">
+                  <strong className="text-gray-900 block mb-2">Создатель:</strong>
+                  <p className="text-gray-800">
                     {selectedTask.created_by_name}
                     {selectedTask.created_by_admin && (
                       <span className="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">Админ</span>
                     )}
                   </p>
                 </div>
+
+                {/* Deadline */}
+                {selectedTask.deadline && (
+                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+                    <strong className="text-gray-900 block mb-2">Дедлайн:</strong>
+                    <p className="text-gray-800">{new Date(selectedTask.deadline).toLocaleString()}</p>
+                  </div>
+                )}
+
+                {/* Created */}
+                <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl p-4 border border-yellow-200">
+                  <strong className="text-gray-900 block mb-2">Создано:</strong>
+                  <p className="text-gray-800">{new Date(selectedTask.created_at).toLocaleString()}</p>
+                </div>
               </div>
 
-              {selectedTask.deadline && (
-                <div>
-                  <strong className={currentTheme.text}>Дедлайн:</strong>
-                  <p className="text-gray-600 mt-1">{new Date(selectedTask.deadline).toLocaleString()}</p>
-                </div>
-              )}
+              {/* Comments Section */}
+              <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-xl p-4 border border-slate-200">
+                <h4 className="font-bold text-gray-900 mb-3">Комментарии ({comments.length})</h4>
 
-              <div>
-                <strong className={currentTheme.text}>Создано:</strong>
-                <p className="text-gray-600 mt-1">{new Date(selectedTask.created_at).toLocaleString()}</p>
+                {/* Comments List */}
+                <div className="space-y-2 mb-4 max-h-80 overflow-y-auto">
+                  {comments.map((comment) => (
+                    <div
+                      key={comment.id}
+                      className={`p-3 rounded-lg ${
+                        comment.is_internal ? 'bg-yellow-50 border border-yellow-200' : 'bg-white border border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-xs text-gray-900">
+                          {comment.author?.first_name || comment.author?.username}
+                        </span>
+                        <span className="text-xs text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
+                        {comment.is_internal && (
+                          <span className="text-xs bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded font-semibold">
+                            Внутренний
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap mb-2">{comment.comment}</p>
+                      {comment.attachments && comment.attachments.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {comment.attachments.map((file, idx) => {
+                            const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.original_filename)
+                            const fileUrl = `/${file.path || file.filename}`
+
+                            if (isImage) {
+                              return (
+                                <a
+                                  key={idx}
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="group relative block"
+                                >
+                                  <img
+                                    src={fileUrl}
+                                    alt={file.original_filename}
+                                    className="h-32 w-auto rounded-lg border-2 border-gray-200 hover:border-blue-500 transition-all cursor-pointer object-cover shadow-sm hover:shadow-md"
+                                    loading="lazy"
+                                  />
+                                  <p className="text-xs text-gray-500 mt-1 max-w-[150px] truncate">
+                                    {file.original_filename}
+                                  </p>
+                                </a>
+                              )
+                            } else {
+                              return (
+                                <a
+                                  key={idx}
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors"
+                                >
+                                  📎 {file.original_filename}
+                                </a>
+                              )
+                            }
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {comments.length === 0 && (
+                    <p className="text-center text-gray-400 py-4 text-sm">Комментариев пока нет</p>
+                  )}
+                </div>
+
+                {/* Add Comment */}
+                <div className="space-y-3 bg-white p-3 rounded-lg border border-gray-200">
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    onPaste={handlePaste}
+                    placeholder="Написать комментарий... (Ctrl+V для вставки скриншотов)"
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
+                  />
+
+                  {/* Preview изображений */}
+                  {previewUrls.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {previewUrls.map((url, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={url}
+                            alt={`Preview ${index + 1}`}
+                            className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200"
+                          />
+                          <button
+                            onClick={() => handleRemoveFile(index)}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Список файлов */}
+                  {selectedFiles.filter(f => !f.type.startsWith('image/')).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedFiles.map((file, index) =>
+                        !file.type.startsWith('image/') && (
+                          <div key={index} className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg text-sm">
+                            <span className="text-gray-700">{file.name}</span>
+                            <button
+                              onClick={() => handleRemoveFile(index)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer transition-colors">
+                      <span className="text-xs font-medium">📎 Прикрепить</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+                        onChange={(e) => handleFilesAdded(Array.from(e.target.files || []))}
+                        className="hidden"
+                      />
+                    </label>
+                    {selectedFiles.length > 0 && (
+                      <span className="text-xs text-gray-600">
+                        {selectedFiles.length} {selectedFiles.length === 1 ? 'файл' : 'файлов'}
+                      </span>
+                    )}
+                    <div className="flex-1" />
+                    <label className="flex items-center gap-1.5 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={isInternal}
+                        onChange={(e) => setIsInternal(e.target.checked)}
+                        className="rounded"
+                      />
+                      Внутренний
+                    </label>
+                    <button
+                      onClick={handleAddComment}
+                      disabled={commentLoading || (!newComment.trim() && selectedFiles.length === 0)}
+                      className="px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      Отправить
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="p-6 border-t border-gray-200 flex justify-end">
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 flex justify-end flex-shrink-0">
               <button
                 onClick={() => {
                   setShowViewModal(false)
                   setSelectedTask(null)
+                  setComments([])
+                  setNewComment('')
+                  setSelectedFiles([])
+                  setPreviewUrls([])
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100"
               >

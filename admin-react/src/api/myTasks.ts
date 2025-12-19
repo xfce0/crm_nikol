@@ -19,6 +19,8 @@ export interface MyTask {
   deadline?: string
   completed_at?: string
   task_metadata?: Record<string, any>
+  progress?: number
+  comments_count?: number
 }
 
 export interface Executor {
@@ -34,6 +36,34 @@ export interface TasksByStatus {
   pending: MyTask[]
   in_progress: MyTask[]
   completed: MyTask[]
+}
+
+export interface TaskComment {
+  id: number
+  task_id: number
+  author_id: number
+  comment: string
+  comment_type: string
+  is_internal: boolean
+  attachments: TaskAttachment[]
+  is_read: boolean
+  read_by: number[]
+  created_at: string
+  author?: {
+    id: number
+    username: string
+    first_name?: string
+    last_name?: string
+    role: string
+  }
+}
+
+export interface TaskAttachment {
+  filename: string
+  path: string
+  original_filename: string
+  size: number
+  uploaded_at: string
 }
 
 // ============= API FUNCTIONS =============
@@ -205,6 +235,81 @@ class MyTasksAPI {
       return {
         success: false,
         message: error.response?.data?.detail || error.response?.data?.message || 'Ошибка удаления задачи'
+      }
+    }
+  }
+
+  /**
+   * Получить комментарии задачи
+   */
+  async getComments(taskId: number) {
+    try {
+      const response = await axiosInstance.get(`/admin/api/tasks/${taskId}/comments`)
+
+      return {
+        success: true,
+        comments: response.data.comments || []
+      }
+    } catch (error: any) {
+      console.error('Error fetching comments:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Ошибка загрузки комментариев',
+        comments: []
+      }
+    }
+  }
+
+  /**
+   * Добавить комментарий к задаче
+   */
+  async addComment(taskId: number, comment: string, isInternal: boolean = false, files: File[] = []) {
+    try {
+      const formData = new FormData()
+      formData.append('comment', comment)
+      formData.append('is_internal', isInternal.toString())
+
+      files.forEach((file) => {
+        formData.append('files', file)
+      })
+
+      const response = await axiosInstance.post(`/admin/api/tasks/${taskId}/comments`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+
+      return {
+        success: true,
+        message: 'Комментарий добавлен'
+      }
+    } catch (error: any) {
+      console.error('Error adding comment:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Ошибка добавления комментария'
+      }
+    }
+  }
+
+  /**
+   * Обновить прогресс задачи
+   */
+  async updateProgress(taskId: number, progress: number) {
+    try {
+      const response = await axiosInstance.put(`/admin/api/tasks/${taskId}`, {
+        progress
+      })
+
+      return {
+        success: true,
+        message: 'Прогресс обновлен'
+      }
+    } catch (error: any) {
+      console.error('Error updating progress:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Ошибка обновления прогресса'
       }
     }
   }
