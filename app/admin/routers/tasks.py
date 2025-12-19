@@ -202,38 +202,12 @@ async def my_tasks_page(request: Request, current_user: dict = Depends(get_curre
         raise HTTPException(status_code=500, detail="Ошибка при загрузке задач")
 
 # Старый HTML endpoint удалён - теперь используется JSON API для React
+# HTML endpoint закомментирован, так как конфликтует с JSON API endpoint ниже
 
-@router.get("/{task_id}", response_class=HTMLResponse)
-async def task_detail_page(request: Request, task_id: int, current_user: dict = Depends(get_current_admin_user)):
-    """Страница детального просмотра задачи"""
-    try:
-        with get_db_context() as db:
-            task = db.query(Task).filter(Task.id == task_id).first()
-            if not task:
-                raise HTTPException(status_code=404, detail="Задача не найдена")
-            
-            # Проверяем права доступа
-            if current_user["role"] == "executor" and task.assigned_to_id != current_user["id"]:
-                raise HTTPException(status_code=403, detail="Нет доступа к этой задаче")
-            
-            # Получаем элементы навигации
-            from app.admin.app import get_navigation_items
-            navigation_items = get_navigation_items(current_user['role'])
-            
-            return templates.TemplateResponse("task_detail.html", {
-                "request": request,
-                "task": task,
-                "current_user": current_user,
-                "username": current_user['username'],
-                "user_role": current_user['role'],
-                "navigation_items": navigation_items
-            })
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Ошибка при загрузке задачи {task_id}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка при загрузке задачи")
+# @router.get("/{task_id}", response_class=HTMLResponse)
+# async def task_detail_page(request: Request, task_id: int, current_user: dict = Depends(get_current_admin_user)):
+#     """Страница детального просмотра задачи"""
+#     Закомментировано из-за конфликта с JSON API
 
 async def _get_tasks_logic(
     request: Request,
@@ -607,7 +581,24 @@ async def get_task(
             task_dict["comments"] = [comment.to_dict() for comment in comments]
             task_dict["is_overdue"] = task.is_overdue
             task_dict["days_until_deadline"] = task.days_until_deadline
-        
+
+            # Добавляем имена для фронтенда
+            if task.created_by:
+                parts = [task.created_by.first_name]
+                if task.created_by.last_name:
+                    parts.append(task.created_by.last_name)
+                task_dict["created_by_name"] = " ".join(parts)
+            else:
+                task_dict["created_by_name"] = "Неизвестно"
+
+            if task.assigned_to:
+                parts = [task.assigned_to.first_name]
+                if task.assigned_to.last_name:
+                    parts.append(task.assigned_to.last_name)
+                task_dict["assigned_to_name"] = " ".join(parts)
+            else:
+                task_dict["assigned_to_name"] = "Не назначен"
+
         return {"success": True, "task": task_dict}
         
     except Exception as e:

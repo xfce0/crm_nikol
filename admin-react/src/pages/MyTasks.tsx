@@ -413,7 +413,7 @@ export const MyTasks = () => {
         }`}
       >
         {/* Action Buttons */}
-        <div className="absolute top-2 right-2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity">
+        <div className="absolute top-2 right-2 flex gap-1 opacity-100">
           <button
             onClick={() => handleViewTask(task.id)}
             className="bg-white border border-gray-300 rounded p-1 hover:bg-gray-100"
