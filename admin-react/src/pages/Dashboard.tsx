@@ -567,6 +567,174 @@ export const Dashboard = () => {
     }
   ]
 
+  // Show loading screen while data is being fetched
+  if (loading || !dashboardData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-pulse text-gray-400 text-2xl mb-4">Загрузка дашборда...</div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+        </div>
+      </div>
+    )
+  }
+
+  // Executor-specific dashboard
+  if (dashboardData.user.role === 'executor') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6">
+        {/* Header - Greeting */}
+        <div className="mb-8">
+          <div className="bg-white backdrop-blur-xl rounded-2xl p-12 border border-gray-200 shadow-lg min-h-[200px]">
+            <div className="space-y-4">
+              <BlurText
+                key={dashboardData.greeting.title}
+                text={dashboardData.greeting.title}
+                delay={80}
+                direction="top"
+                animateBy="words"
+                className="text-4xl text-gray-900 font-normal text-center"
+              />
+              {/* Executor Summary */}
+              {dashboardData.summary && (
+                <div className="flex items-center justify-center gap-6 text-sm text-gray-600">
+                  {dashboardData.summary.total_tasks !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <CheckSquare className="w-4 h-4 text-purple-600" />
+                      <span>Всего задач: <strong>{dashboardData.summary.total_tasks}</strong></span>
+                    </div>
+                  )}
+                  {dashboardData.summary.overdue_tasks !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                      <span>Просроченных: <strong>{dashboardData.summary.overdue_tasks}</strong></span>
+                    </div>
+                  )}
+                  {dashboardData.summary.tasks_today !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <CheckSquare className="w-4 h-4 text-blue-600" />
+                      <span>На сегодня: <strong>{dashboardData.summary.tasks_today}</strong></span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Task Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Pending Tasks */}
+          <div
+            onClick={() => navigate('/my-tasks')}
+            className="bg-gradient-to-br from-yellow-50 to-orange-100 backdrop-blur-xl rounded-2xl p-6 border border-yellow-200 shadow-lg hover:shadow-xl transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <Clock className="w-6 h-6 text-yellow-600" />
+              <span className="text-sm text-yellow-700 font-semibold">Ожидающие задачи</span>
+            </div>
+            <div className="text-3xl font-bold text-yellow-700">
+              {dashboardData.tasks.overdue.length + dashboardData.tasks.upcoming.filter(t => t.status === 'pending').length}
+            </div>
+            <div className="text-xs text-gray-600 mt-2">
+              {dashboardData.tasks.overdue.length > 0 && (
+                <span className="text-red-600">Просрочено: {dashboardData.tasks.overdue.length}</span>
+              )}
+            </div>
+          </div>
+
+          {/* In Progress Tasks */}
+          <div
+            onClick={() => navigate('/my-tasks')}
+            className="bg-gradient-to-br from-blue-50 to-sky-100 backdrop-blur-xl rounded-2xl p-6 border border-blue-200 shadow-lg hover:shadow-xl transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <Activity className="w-6 h-6 text-blue-600" />
+              <span className="text-sm text-blue-700 font-semibold">В работе</span>
+            </div>
+            <div className="text-3xl font-bold text-blue-700">
+              {dashboardData.tasks.upcoming.filter(t => t.status === 'in_progress').length}
+            </div>
+            <div className="text-xs text-gray-600 mt-2">Активные задачи</div>
+          </div>
+
+          {/* Completed Tasks */}
+          <div
+            onClick={() => navigate('/my-tasks')}
+            className="bg-gradient-to-br from-green-50 to-emerald-100 backdrop-blur-xl rounded-2xl p-6 border border-green-200 shadow-lg hover:shadow-xl transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <CheckSquare className="w-6 h-6 text-green-600" />
+              <span className="text-sm text-green-700 font-semibold">Выполнено</span>
+            </div>
+            <div className="text-3xl font-bold text-green-700">
+              {dashboardData.charts?.tasks_by_status?.completed || 0}
+            </div>
+            <div className="text-xs text-gray-600 mt-2">Завершенные задачи</div>
+          </div>
+        </div>
+
+        {/* Recent Tasks */}
+        <div className="bg-white backdrop-blur-xl rounded-2xl p-6 border border-gray-200 shadow-lg">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <CheckSquare className="w-5 h-5 text-purple-600" />
+              <h2 className="text-xl font-normal text-gray-900">Мои задачи</h2>
+            </div>
+            <button
+              onClick={() => navigate('/my-tasks')}
+              className="text-sm text-gray-400 hover:text-gray-900 transition-colors font-normal"
+            >
+              Все задачи →
+            </button>
+          </div>
+          <div className="space-y-3">
+            {/* Overdue Tasks */}
+            {dashboardData.tasks.overdue.length > 0 && (
+              <>
+                <div className="text-xs font-semibold text-red-600 uppercase mb-2">
+                  Просроченные ({dashboardData.tasks.overdue.length})
+                </div>
+                {dashboardData.tasks.overdue.slice(0, 3).map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    title={task.title}
+                    status="pending"
+                    priority={task.priority as 'low' | 'medium' | 'high'}
+                    deadline={new Date(task.deadline).toLocaleDateString('ru-RU')}
+                  />
+                ))}
+              </>
+            )}
+
+            {/* Upcoming Tasks */}
+            {dashboardData.tasks.upcoming.length > 0 && (
+              <>
+                <div className="text-xs font-semibold text-blue-600 uppercase mb-2">
+                  Предстоящие ({dashboardData.tasks.upcoming.length})
+                </div>
+                {dashboardData.tasks.upcoming.slice(0, 5).map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    title={task.title}
+                    status={task.status as 'pending' | 'in_progress' | 'completed'}
+                    priority={task.priority as 'low' | 'medium' | 'high'}
+                    deadline={new Date(task.deadline).toLocaleDateString('ru-RU')}
+                  />
+                ))}
+              </>
+            )}
+
+            {dashboardData.tasks.overdue.length === 0 && dashboardData.tasks.upcoming.length === 0 && (
+              <div className="text-center py-8 text-gray-400">Нет активных задач</div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Admin/Teamlead dashboard
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6">
       {/* Header - Greeting */}

@@ -720,15 +720,15 @@ async def api_stats(username: str = Depends(authenticate)):
 async def api_dashboard_stats(username: str = Depends(authenticate)):
     """API для получения статистики дашборда - новый формат для React"""
     try:
-        from ..database.models import Project, Task, User, Transaction
+        from ..database.models import Project, Task, User, Transaction, AdminUser
         from datetime import datetime, timedelta
 
         with get_db_context() as db:
             now = datetime.utcnow()
             month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-            # Получаем информацию о пользователе
-            user = db.query(User).filter(User.username == username).first()
+            # Получаем информацию о пользователе из admin_users таблицы
+            user = db.query(AdminUser).filter(AdminUser.username == username).first()
             user_role = user.role if user and hasattr(user, 'role') else 'owner'
 
             # Проекты - получаем все для финансовых расчетов
@@ -788,7 +788,12 @@ async def api_dashboard_stats(username: str = Depends(authenticate)):
                 month_revenue = 0
 
             # Задачи - разбиваем на категории
-            all_tasks = db.query(Task).all()
+            # Для исполнителей показываем только их задачи
+            if user_role == 'executor':
+                all_tasks = db.query(Task).filter(Task.assigned_to_id == user.id).all()
+            else:
+                all_tasks = db.query(Task).all()
+
             overdue_tasks = []
             upcoming_tasks = []
             new_tasks = []

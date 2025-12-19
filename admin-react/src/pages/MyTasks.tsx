@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
+import { useAuth } from '../contexts/AuthContext'
 import myTasksApi from '../api/myTasks'
 import type { MyTask, TasksByStatus, Executor, TaskComment } from '../api/myTasks'
 
@@ -11,6 +12,7 @@ interface Toast {
 
 export const MyTasks = () => {
   const { currentTheme } = useTheme()
+  const { isOwner } = useAuth()
 
   // ============= STATE =============
   const [tasksByStatus, setTasksByStatus] = useState<TasksByStatus>({
@@ -524,14 +526,18 @@ export const MyTasks = () => {
         draggable
         onDragStart={(e) => handleDragStart(e, task)}
         onDragEnd={handleDragEnd}
-        className={`${getPriorityColor(task.priority)} rounded-lg p-4 mb-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all relative ${
+        onClick={() => handleViewTask(task.id)}
+        className={`${getPriorityColor(task.priority)} rounded-lg p-4 mb-3 cursor-pointer hover:shadow-md transition-all relative ${
           draggedTask?.id === task.id ? 'opacity-50 scale-95' : ''
         }`}
       >
         {/* Action Buttons */}
         <div className="absolute top-2 right-2 flex gap-1 opacity-100">
           <button
-            onClick={() => handleViewTask(task.id)}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleViewTask(task.id)
+            }}
             className="bg-white border border-gray-300 rounded p-1 hover:bg-gray-100"
             title="Просмотр"
           >
@@ -540,15 +546,20 @@ export const MyTasks = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
           </button>
-          <button
-            onClick={() => handleDeleteTask(task.id, task)}
-            className="bg-white border border-gray-300 rounded p-1 hover:bg-red-100 text-red-600"
-            title="Удалить"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
+          {isOwner() && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDeleteTask(task.id, task)
+              }}
+              className="bg-white border border-gray-300 rounded p-1 hover:bg-red-100 text-red-600"
+              title="Удалить"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
         </div>
 
         <h3 className={`font-semibold ${currentTheme.text} mb-2 pr-16`}>
