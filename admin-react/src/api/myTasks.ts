@@ -297,7 +297,7 @@ class MyTasksAPI {
    */
   async updateProgress(taskId: number, progress: number) {
     try {
-      const response = await axiosInstance.put(`/admin/api/tasks/${taskId}`, {
+      const response = await axiosInstance.post(`/admin/api/tasks/${taskId}/progress`, {
         progress
       })
 
