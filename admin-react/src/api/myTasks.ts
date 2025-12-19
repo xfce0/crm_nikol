@@ -177,7 +177,7 @@ class MyTasksAPI {
 
       return {
         success: true,
-        task: response.data as MyTask
+        task: response.data.task as MyTask
       }
     } catch (error: any) {
       console.error('Error fetching task:', error)
