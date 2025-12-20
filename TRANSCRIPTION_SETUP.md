@@ -3,7 +3,9 @@
 ## ✅ Установлено на сервере
 
 1. **faster-whisper>=0.10.0** - библиотека для быстрой транскрибации аудио
-2. Сервис CRM успешно перезапущен
+2. **ffmpeg** - система для обработки аудио/видео файлов
+3. Настроен PATH в systemd службе для доступа к системным утилитам
+4. Сервис CRM успешно перезапущен
 
 ## Проверка установки
 
@@ -12,7 +14,12 @@
 ssh root@147.45.215.199
 cd /var/www/crm
 source venv/bin/activate
-python -c "from faster_whisper import WhisperModel; print('✅ OK')"
+
+# Проверка faster-whisper
+python -c "from faster_whisper import WhisperModel; print('✅ faster-whisper OK')"
+
+# Проверка ffmpeg
+which ffmpeg && echo '✅ ffmpeg OK'
 ```
 
 ## Как работает транскрибация
@@ -42,6 +49,26 @@ pip install --upgrade faster-whisper
 systemctl restart crm
 ```
 
+### Ошибка: "[Errno 2] No such file or directory: 'ffmpeg'"
+**Причина**: ffmpeg не установлен или недоступен в PATH службы systemd
+
+**Решение 1**: Установить ffmpeg
+```bash
+apt-get update && apt-get install -y ffmpeg
+```
+
+**Решение 2**: Проверить PATH в службе systemd
+Файл `/etc/systemd/system/crm.service` должен содержать:
+```ini
+Environment="PATH=/var/www/crm/venv/bin:/usr/local/bin:/usr/bin:/bin"
+```
+
+После изменений:
+```bash
+systemctl daemon-reload
+systemctl restart crm
+```
+
 ### Ошибка: Out of Memory
 **Решение**: Используется модель `tiny` для экономии памяти. Если проблема сохраняется:
 - Уменьшить `num_workers` до 1 (уже сделано)
@@ -50,9 +77,19 @@ systemctl restart crm
 
 ## Зависимости
 
-Все зависимости указаны в `requirements.txt`:
+### Python пакеты (requirements.txt):
 ```
 faster-whisper>=0.10.0  # Fast Whisper transcription
+```
+
+### Системные пакеты:
+```bash
+# Ubuntu/Debian
+apt-get install ffmpeg
+
+# Проверка установки
+ffmpeg -version
+which ffmpeg  # Должен вернуть: /usr/bin/ffmpeg
 ```
 
 ## Логи
