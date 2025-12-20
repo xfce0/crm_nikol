@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  background-color: #f5f7fa;
+}
+
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -12,7 +16,74 @@ body {
   background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
   color: #111827;
   min-height: 100vh;
-  overflow-x: hidden !important;
+  overflow-x: hidden;
+}
+
+#root {
+  background-color: transparent;
+  color: #111827;
+}
+
+/* ========== СТИЛИ ДЛЯ ФОРМ (input, select, textarea) ========== */
+/* Принудительно светлый фон для всех полей ввода */
+input,
+select,
+textarea {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #e5e7eb !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+/* Убираем темные стили браузера для input и select */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+select,
+textarea {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  caret-color: #111827 !important;
+}
+
+/* Стрелка для select */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E") !important;
+  background-position: right 0.5rem center !important;
+  background-repeat: no-repeat !important;
+  background-size: 1.5em 1.5em !important;
+  padding-right: 2.5rem !important;
+}
+
+/* Disabled состояние */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background-color: #f3f4f6 !important;
+  color: #6b7280 !important;
+  cursor: not-allowed !important;
 }
 
 /* Hide scrollbar globally */
@@ -111,6 +182,12 @@ div[class*="modal-content-scrollable"]::-webkit-scrollbar {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+}
+
+/* SVG иконки */
+svg {
+  fill: currentColor;
+  stroke: currentColor;
 }
 
 /* Стили для прогресс-бара (range slider) */
