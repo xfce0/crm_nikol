@@ -97,6 +97,14 @@ async def run_admin_panel():
     # Подключаем админ роуты
     app.include_router(admin_router, prefix="/admin")
 
+    # Подключаем роутер транскрибации
+    try:
+        from app.api.transcription import router as transcription_router
+        app.include_router(transcription_router, prefix="/api/v1", tags=["transcription"])
+        print("✅ Роутер транскрибаций подключен")
+    except Exception as e:
+        print(f"⚠️  Не удалось подключить роутер транскрибаций: {e}")
+
     # Подключаем catch-all роутер для React SPA
     from app.admin.app import catch_all_router
     app.include_router(catch_all_router, prefix="/admin")

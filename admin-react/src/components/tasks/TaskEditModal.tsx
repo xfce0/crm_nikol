@@ -68,6 +68,16 @@ export const TaskEditModal = ({ isOpen, onClose, onSuccess, task, employees }: T
       document.body.style.top = `-${scrollY}px`
       document.body.style.width = '100%'
       document.body.style.overflow = 'hidden'
+
+      // Cleanup function to restore scroll on unmount
+      return () => {
+        const scrollY = document.body.style.top
+        document.body.style.position = ''
+        document.body.style.top = ''
+        document.body.style.width = ''
+        document.body.style.overflow = ''
+        window.scrollTo(0, parseInt(scrollY || '0') * -1)
+      }
     } else {
       const scrollY = document.body.style.top
       document.body.style.position = ''

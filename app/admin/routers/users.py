@@ -7,7 +7,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from ...core.database import get_db
+from ...database.database import get_db
 from ...database.models import AdminUser
 from ...config.logging import get_logger
 from ...services.auth_service import AuthService
@@ -73,7 +73,7 @@ async def users_page(
     })
 
 @router.get("/api")
-async def get_admin_users(db: Session = Depends(get_db)):
+def get_admin_users(db: Session = Depends(get_db)):
     """Получить список всех админ-пользователей для API"""
     try:
         # Получаем всех пользователей из базы данных
@@ -120,64 +120,55 @@ def get_executors():
             {
                 "id": 3,
                 "username": "Casper123",
-                "first_name": "Каспер",
-                "last_name": "",
+                "name": "Каспер",
                 "role": "timlead"
             },
             {
                 "id": 4,
                 "username": "daniltechno",
-                "first_name": "Данил",
-                "last_name": "",
+                "name": "Данил",
                 "role": "executor"
             },
             {
                 "id": 5,
                 "username": "xfce0",
-                "first_name": "Илья",
-                "last_name": "",
+                "name": "Илья",
                 "role": "executor"
             },
             {
                 "id": 7,
                 "username": "gennic",
-                "first_name": "Геннадий",
-                "last_name": "",
+                "name": "Геннадий",
                 "role": "executor"
             },
             {
                 "id": 8,
                 "username": "hyperpop",
-                "first_name": "Макс",
-                "last_name": "",
+                "name": "Макс",
                 "role": "executor"
             },
             {
                 "id": 9,
                 "username": "batsievoleg",
-                "first_name": "Олег",
-                "last_name": "",
+                "name": "Олег",
                 "role": "executor"
             },
             {
                 "id": 10,
                 "username": "Inisei",
-                "first_name": "Иван",
-                "last_name": "",
+                "name": "Иван",
                 "role": "executor"
             },
             {
                 "id": 11,
                 "username": "deathdaycome",
-                "first_name": "Артём",
-                "last_name": "",
+                "name": "Артём",
                 "role": "executor"
             },
             {
                 "id": 12,
                 "username": "omen",
-                "first_name": "Андрей",
-                "last_name": "",
+                "name": "Андрей",
                 "role": "timlead"
             }
         ]

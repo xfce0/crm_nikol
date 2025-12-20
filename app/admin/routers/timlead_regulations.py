@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
-from ...core.database import get_db
+from ...database.database import get_db
 from ...database.models import AdminUser
 from ..middleware.auth import get_current_admin_user
 from ...config.logging import get_logger
@@ -41,7 +41,7 @@ class RegulationUpdateRequest(BaseModel):
 
 
 @router.get("/", response_model=List[RegulationResponse])
-async def get_all_regulations(
+def get_all_regulations(
     current_user: AdminUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
@@ -93,7 +93,7 @@ async def get_all_regulations(
 
 
 @router.get("/{regulation_id}", response_model=RegulationResponse)
-async def get_regulation(
+def get_regulation(
     regulation_id: int,
     current_user: AdminUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
@@ -136,7 +136,7 @@ async def get_regulation(
 
 
 @router.put("/{regulation_id}")
-async def update_regulation(
+def update_regulation(
     regulation_id: int,
     regulation_data: RegulationUpdateRequest,
     current_user: AdminUser = Depends(get_current_admin_user),

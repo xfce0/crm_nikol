@@ -18,7 +18,10 @@ class Settings:
     OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "anthropic/claude-3.5-sonnet")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    
+
+    # Timeweb Cloud API
+    TIMEWEB_API_TOKEN: str = os.getenv("TIMEWEB_API_TOKEN", "")
+
     # Database
     # Определяем путь к БД в зависимости от окружения
     if os.path.exists("/var/www/bot_business_card/data/bot.db"):

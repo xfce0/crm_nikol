@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from ...core.database import get_db
+from ...database.database import get_db
 from ...database.models import AdminUser
 from ...database.rbac_models import Role, Permission, DataAccessRule
 from ...database.crm_models import Client, Lead, Deal
@@ -82,7 +82,7 @@ AVAILABLE_MODULES = {
 }
 
 @router.get("/", response_class=HTMLResponse)
-async def permissions_page(
+def permissions_page(
     request: Request,
     current_user: AdminUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
@@ -130,7 +130,7 @@ async def permissions_page(
         raise HTTPException(status_code=500, detail=f"Ошибка загрузки страницы: {str(e)}")
 
 @router.get("/user/{user_id}", response_class=JSONResponse)
-async def get_user_permissions(
+def get_user_permissions(
     user_id: int,
     current_user: AdminUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
@@ -225,7 +225,7 @@ async def get_user_permissions(
         raise HTTPException(status_code=500, detail=f"Ошибка получения прав: {str(e)}")
 
 @router.post("/user/{user_id}/update", response_class=JSONResponse)
-async def update_user_permissions(
+def update_user_permissions(
     user_id: int,
     request: Request,
     current_user: AdminUser = Depends(get_current_admin_user),
@@ -273,7 +273,7 @@ async def update_user_permissions(
         raise HTTPException(status_code=500, detail=f"Ошибка обновления прав: {str(e)}")
 
 @router.get("/role/{role_name}/template", response_class=JSONResponse) 
-async def get_role_permissions_template(
+def get_role_permissions_template(
     role_name: str,
     current_user: AdminUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
@@ -376,7 +376,7 @@ async def get_role_permissions_template(
 
 
 @router.post("/user/{user_id}/apply-role-template", response_class=JSONResponse)
-async def apply_role_template(
+def apply_role_template(
     user_id: int,
     role_name: str,
     current_user: AdminUser = Depends(get_current_admin_user),
@@ -411,7 +411,7 @@ async def apply_role_template(
 
 
 @router.get("/statistics", response_class=JSONResponse)
-async def get_permissions_statistics(
+def get_permissions_statistics(
     current_user: AdminUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
@@ -474,7 +474,7 @@ async def get_permissions_statistics(
 
 
 @router.post("/user/{user_id}/reset", response_class=JSONResponse)
-async def reset_user_permissions(
+def reset_user_permissions(
     user_id: int,
     current_user: AdminUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
@@ -520,7 +520,7 @@ async def reset_user_permissions(
 
 
 @router.get("/api/admins", response_class=JSONResponse)
-async def get_all_admins(
+def get_all_admins(
     current_user: AdminUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db)
 ):
@@ -554,7 +554,7 @@ async def get_all_admins(
         raise HTTPException(status_code=500, detail="Ошибка получения списка администраторов")
 
 
-async def _update_user_module_permissions(user_id: int, module_permissions: Dict[str, Any], 
+def _update_user_module_permissions(user_id: int, module_permissions: Dict[str, Any], 
                                         rbac: RBACService, db: Session, current_user: AdminUser):
     """Обновить разрешения пользователя по модулям"""
     

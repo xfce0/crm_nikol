@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 
 from ...core.database import get_db
+from ...database.database import get_db_context as get_sync_db_context
 from ...database.models import AdminUser, HostingServer, HostingPayment, Project, User
 from ...database.crm_models import Client
 from ..middleware.auth import get_current_admin_user
@@ -903,8 +904,8 @@ async def import_timeweb_servers(
                 )
 
                 db.add(server)
-                db.commit()
-                db.refresh(server)
+                await db.commit()
+                await db.refresh(server)
 
                 imported.append({
                     "server_id": server_id,
@@ -987,8 +988,8 @@ async def sync_server_with_timeweb(
 
         server.updated_at = datetime.utcnow()
 
-        db.commit()
-        db.refresh(server)
+        await db.commit()
+        await db.refresh(server)
 
         return {
             "success": True,
@@ -1086,8 +1087,8 @@ async def sync_all_timeweb_servers(
                         existing.notes = (existing.notes or "") + f"\n\nЦена обновлена: {existing.cost_price} → {cost_price} (автосинхронизация {datetime.utcnow().strftime('%Y-%m-%d %H:%M')})"
                         existing.cost_price = cost_price
 
-                    db.commit()
-                    db.refresh(existing)
+                    await db.commit()
+                    await db.refresh(existing)
 
                     updated.append({
                         "timeweb_id": server_id,
@@ -1234,14 +1235,17 @@ async def get_client_balance(
         if not server:
             raise HTTPException(status_code=404, detail="Клиент не найден")
 
-        # Обновляем стоимость серверов перед возвратом
-        balance = balance_service.update_client_costs(
-            db, client_id, server.client_name
-        )
+        # Используем синхронную сессию для balance_service
+        with get_sync_db_context() as sync_db:
+            # Обновляем стоимость серверов перед возвратом
+            balance = balance_service.update_client_costs(
+                sync_db, client_id, server.client_name
+            )
+            balance_dict = balance.to_dict()
 
         return {
             "success": True,
-            "balance": balance.to_dict()
+            "balance": balance_dict
         }
 
     except HTTPException:
@@ -1282,33 +1286,37 @@ async def add_client_balance(
         if not server:
             raise HTTPException(status_code=404, detail="Клиент не найден")
 
-        # Пополняем баланс
-        balance, transaction = balance_service.add_balance(
-            db=db,
-            client_id=client_id,
-            client_name=server.client_name,
-            amount=amount,
-            description=description,
-            created_by=current_user.get("username"),
-            client_telegram_id=server.client_telegram_id
-        )
+        # Используем синхронную сессию для balance_service
+        with get_sync_db_context() as sync_db:
+            # Пополняем баланс
+            balance, transaction = balance_service.add_balance(
+                db=sync_db,
+                client_id=client_id,
+                client_name=server.client_name,
+                amount=amount,
+                description=description,
+                created_by=current_user.get("username"),
+                client_telegram_id=server.client_telegram_id
+            )
 
-        # Обновляем стоимость серверов
-        balance = balance_service.update_client_costs(
-            db, client_id, server.client_name
-        )
+            # Обновляем стоимость серверов
+            balance = balance_service.update_client_costs(
+                sync_db, client_id, server.client_name
+            )
+
+            balance_dict = balance.to_dict()
+            transaction_dict = transaction.to_dict()
 
         return {
             "success": True,
             "message": f"Баланс пополнен на {amount}₽",
-            "balance": balance.to_dict(),
-            "transaction": transaction.to_dict()
+            "balance": balance_dict,
+            "transaction": transaction_dict
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=500, detail=f"Ошибка пополнения баланса: {str(e)}")
 
 
@@ -1323,12 +1331,15 @@ async def get_client_transactions(
     try:
         from ...services.balance_service import balance_service
 
-        transactions = balance_service.get_transactions(db, client_id, limit)
+        # Используем синхронную сессию для balance_service
+        with get_sync_db_context() as sync_db:
+            transactions = balance_service.get_transactions(sync_db, client_id, limit)
+            transactions_list = [t.to_dict() for t in transactions]
 
         return {
             "success": True,
-            "transactions": [t.to_dict() for t in transactions],
-            "total": len(transactions)
+            "transactions": transactions_list,
+            "total": len(transactions_list)
         }
 
     except Exception as e:
