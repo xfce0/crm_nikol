@@ -242,12 +242,12 @@ def update_user_permissions(
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     
     # Получаем данные из запроса
-    data = await request.json()
+    data = request.json()
     module_permissions = data.get("module_permissions", {})
-    
+
     try:
         # Обновляем разрешения и правила доступа
-        await _update_user_module_permissions(user_id, module_permissions, rbac, db, current_user)
+        _update_user_module_permissions(user_id, module_permissions, rbac, db, current_user)
         
         # Логируем изменения  
         from ...database.audit_models import AuditLog, AuditActionType, AuditEntityType
@@ -394,14 +394,14 @@ def apply_role_template(
     
     try:
         # Получаем шаблон роли
-        response = await get_role_permissions_template(role_name, current_user, db)
+        response = get_role_permissions_template(role_name, current_user, db)
         if hasattr(response, 'status_code') and response.status_code != 200:
             raise HTTPException(status_code=404, detail="Шаблон роли не найден")
-        
+
         template_data = response if isinstance(response, dict) else response.body
-        
+
         # Применяем шаблон
-        await _update_user_module_permissions(user_id, template_data['modules'], rbac, db, current_user)
+        _update_user_module_permissions(user_id, template_data['modules'], rbac, db, current_user)
         
         return {"success": True, "message": f"Шаблон роли '{template_data['name']}' успешно применен"}
         

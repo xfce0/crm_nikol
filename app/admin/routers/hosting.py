@@ -235,11 +235,14 @@ async def create_server(
     try:
         # Автоматически получаем или создаем client_id на основе имени клиента
         from app.services.client_id_service import client_id_service
-        auto_client_id = client_id_service.get_or_create_client_id(
-            db,
-            data.client_name,
-            data.client_telegram_id
-        )
+
+        # Используем синхронную сессию для client_id_service
+        with get_sync_db_context() as sync_db:
+            auto_client_id = client_id_service.get_or_create_client_id(
+                sync_db,
+                data.client_name,
+                data.client_telegram_id
+            )
 
         server = HostingServer(
             project_id=data.project_id,
@@ -279,7 +282,9 @@ async def create_server(
         # Обновляем затраты клиента если указан client_id
         if server.client_id:
             from app.services.balance_service import balance_service
-            balance_service.update_client_costs(db, server.client_id, server.client_name)
+            # Используем синхронную сессию для balance_service
+            with get_sync_db_context() as sync_db:
+                balance_service.update_client_costs(sync_db, server.client_id, server.client_name)
 
         return {
             "success": True,
@@ -312,12 +317,15 @@ async def update_server(
         # Автоматически получаем или создаем client_id
         # Передаем server_id чтобы сохранить существующий client_id при обновлении
         from app.services.client_id_service import client_id_service
-        auto_client_id = client_id_service.get_or_create_client_id(
-            db,
-            data.client_name,
-            data.client_telegram_id,
-            server_id=server_id  # ВАЖНО: сохраняем существующий client_id
-        )
+
+        # Используем синхронную сессию для client_id_service
+        with get_sync_db_context() as sync_db:
+            auto_client_id = client_id_service.get_or_create_client_id(
+                sync_db,
+                data.client_name,
+                data.client_telegram_id,
+                server_id=server_id  # ВАЖНО: сохраняем существующий client_id
+            )
 
         server.project_id = data.project_id
         server.client_id = auto_client_id  # Используем автоматически присвоенный ID
@@ -342,7 +350,9 @@ async def update_server(
         # Обновляем затраты клиента если указан client_id
         if server.client_id:
             from app.services.balance_service import balance_service
-            balance_service.update_client_costs(db, server.client_id, server.client_name)
+            # Используем синхронную сессию для balance_service
+            with get_sync_db_context() as sync_db:
+                balance_service.update_client_costs(sync_db, server.client_id, server.client_name)
 
         return {
             "success": True,
@@ -878,6 +888,7 @@ async def import_timeweb_servers(
                 # Парсим конфигурацию
                 configuration = timeweb_service.parse_server_configuration(tw_server)
                 ip_address = timeweb_service.get_primary_ip(tw_server)
+                preset_id = tw_server.get("preset_id")
 
                 # Создаем сервер в CRM
                 # Пользователь должен будет вручную привязать к проекту и указать цену клиента
@@ -914,7 +925,7 @@ async def import_timeweb_servers(
                 })
 
             except Exception as e:
-                db.rollback()
+                await db.rollback()
                 errors.append({
                     "server_id": server_id,
                     "error": str(e)
@@ -1103,11 +1114,14 @@ async def sync_all_timeweb_servers(
 
                     # Автоматически присваиваем client_id на основе имени
                     from app.services.client_id_service import client_id_service
-                    auto_client_id = client_id_service.get_or_create_client_id(
-                        db,
-                        "Не указан",
-                        None
-                    )
+
+                    # Используем синхронную сессию для client_id_service
+                    with get_sync_db_context() as sync_db:
+                        auto_client_id = client_id_service.get_or_create_client_id(
+                            sync_db,
+                            "Не указан",
+                            None
+                        )
 
                     server = HostingServer(
                         server_name=tw_server.get("name", f"Server-{server_id}"),
@@ -1133,8 +1147,8 @@ async def sync_all_timeweb_servers(
                     )
 
                     db.add(server)
-                    db.commit()
-                    db.refresh(server)
+                    await db.commit()
+                    await db.refresh(server)
 
                     created.append({
                         "timeweb_id": server_id,
@@ -1143,7 +1157,7 @@ async def sync_all_timeweb_servers(
                     })
 
             except Exception as e:
-                db.rollback()
+                await db.rollback()
                 errors.append({
                     "server_id": tw_server.get("id"),
                     "server_name": tw_server.get("name"),
@@ -1181,12 +1195,15 @@ async def get_low_balance_clients(
     try:
         from ...services.balance_service import balance_service
 
-        clients = balance_service.get_clients_with_low_balance(db, days_threshold)
+        # Используем синхронную сессию для balance_service
+        with get_sync_db_context() as sync_db:
+            clients = balance_service.get_clients_with_low_balance(sync_db, days_threshold)
+            clients_list = [c.to_dict() for c in clients]
 
         return {
             "success": True,
-            "clients": [c.to_dict() for c in clients],
-            "total": len(clients),
+            "clients": clients_list,
+            "total": len(clients_list),
             "threshold_days": days_threshold
         }
 
@@ -1203,7 +1220,9 @@ async def get_balance_summary(
     try:
         from ...services.balance_service import balance_service
 
-        summary = balance_service.get_balance_summary(db)
+        # Используем синхронную сессию для balance_service
+        with get_sync_db_context() as sync_db:
+            summary = balance_service.get_balance_summary(sync_db)
 
         return {
             "success": True,
