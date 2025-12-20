@@ -63,7 +63,7 @@ export const ExecutorPaymentModal = ({
     setError('')
 
     try {
-      const response = await fetch(`http://localhost:8001/admin/api/projects/${projectId}/executor-payments`, {
+      const response = await fetch(`http://localhost:8000/admin/api/projects/${projectId}/executor-payments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,7 +98,7 @@ export const ExecutorPaymentModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -118,9 +118,9 @@ export const ExecutorPaymentModal = ({
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Payment Summary */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4">
               <p className="text-xs text-blue-600 font-semibold mb-1">Стоимость работы</p>
               <p className="text-2xl font-bold text-blue-900">
@@ -212,15 +212,7 @@ export const ExecutorPaymentModal = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3">
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={loading || !amount || amount <= 0}
-            className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Добавление...' : 'Добавить выплату'}
-          </button>
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col-reverse sm:flex-row gap-3 flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -228,6 +220,14 @@ export const ExecutorPaymentModal = ({
             className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-semibold disabled:opacity-50"
           >
             Отмена
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading || !amount || amount <= 0}
+            className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Добавление...' : 'Добавить выплату'}
           </button>
         </div>
       </div>

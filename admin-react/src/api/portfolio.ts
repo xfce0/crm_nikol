@@ -145,19 +145,19 @@ const portfolioApi = {
       queryParams.append('visible_only', params.visible_only.toString())
     if (params?.sort_by) queryParams.append('sort_by', params.sort_by)
 
-    const response = await axiosInstance.get(`/api/portfolio/?${queryParams.toString()}`)
+    const response = await axiosInstance.get(`/admin/api/portfolio/?${queryParams.toString()}`)
     return response.data
   },
 
   // Get categories list
   getCategories: async (): Promise<CategoriesResponse> => {
-    const response = await axiosInstance.get('/api/portfolio/categories')
+    const response = await axiosInstance.get('/admin/api/portfolio/categories')
     return response.data
   },
 
   // Get single portfolio item
   getItem: async (projectId: number): Promise<PortfolioItemResponse> => {
-    const response = await axiosInstance.get(`/api/portfolio/${projectId}`)
+    const response = await axiosInstance.get(`/admin/api/portfolio/${projectId}`)
     return response.data
   },
 
@@ -194,7 +194,7 @@ const portfolioApi = {
       formData.append('main_image', data.main_image)
     }
 
-    const response = await axiosInstance.post('/api/portfolio/', formData, {
+    const response = await axiosInstance.post('/admin/api/portfolio/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -237,7 +237,7 @@ const portfolioApi = {
       formData.append('main_image', data.main_image)
     }
 
-    const response = await axiosInstance.put(`/api/portfolio/${projectId}`, formData, {
+    const response = await axiosInstance.put(`/admin/api/portfolio/${projectId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -247,7 +247,7 @@ const portfolioApi = {
 
   // Delete portfolio item
   delete: async (projectId: number): Promise<MessageResponse> => {
-    const response = await axiosInstance.delete(`/api/portfolio/${projectId}`)
+    const response = await axiosInstance.delete(`/admin/api/portfolio/${projectId}`)
     return response.data
   },
 
@@ -257,7 +257,7 @@ const portfolioApi = {
     formData.append('file', file)
     if (subfolder) formData.append('subfolder', subfolder)
 
-    const response = await axiosInstance.post('/api/portfolio/upload-image', formData, {
+    const response = await axiosInstance.post('/admin/api/portfolio/upload-image', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -267,7 +267,7 @@ const portfolioApi = {
 
   // Reorder portfolio items
   reorder: async (orderData: Array<{ id: number; order: number }>): Promise<MessageResponse> => {
-    const response = await axiosInstance.post('/api/portfolio/reorder', {
+    const response = await axiosInstance.post('/admin/api/portfolio/reorder', {
       projects: orderData,
     })
     return response.data
@@ -275,25 +275,25 @@ const portfolioApi = {
 
   // Get portfolio statistics
   getStats: async (): Promise<PortfolioStatsResponse> => {
-    const response = await axiosInstance.get('/api/portfolio/stats/overview')
+    const response = await axiosInstance.get('/admin/api/portfolio/stats/overview')
     return response.data
   },
 
   // Publish to Telegram
   publishToTelegram: async (portfolioId: number): Promise<MessageResponse> => {
-    const response = await axiosInstance.post(`/api/portfolio/${portfolioId}/publish`)
+    const response = await axiosInstance.post(`/admin/api/portfolio/${portfolioId}/publish`)
     return response.data
   },
 
   // Update published item in Telegram
   updatePublished: async (portfolioId: number): Promise<MessageResponse> => {
-    const response = await axiosInstance.put(`/api/portfolio/${portfolioId}/update-published`)
+    const response = await axiosInstance.put(`/admin/api/portfolio/${portfolioId}/update-published`)
     return response.data
   },
 
   // Unpublish from Telegram
   unpublish: async (portfolioId: number): Promise<MessageResponse> => {
-    const response = await axiosInstance.delete(`/api/portfolio/${portfolioId}/unpublish`)
+    const response = await axiosInstance.delete(`/admin/api/portfolio/${portfolioId}/unpublish`)
     return response.data
   },
 }

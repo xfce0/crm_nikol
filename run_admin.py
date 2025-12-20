@@ -17,15 +17,30 @@ async def run_admin_panel():
     import uvicorn
     from fastapi import FastAPI
     from fastapi.staticfiles import StaticFiles
+    from fastapi.middleware.cors import CORSMiddleware
     from app.admin.app import admin_router
     from app.config.settings import settings
     from app.database.database import init_db
-    
+
     # Инициализируем базу данных
     init_db()
-    
+
     # Создаем FastAPI приложение
     app = FastAPI(title="Bot Admin Panel", description="Админ панель для Telegram бота")
+
+    # Настраиваем CORS для локальной разработки
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",  # Vite dev server
+            "http://localhost:3000",  # Alternative dev port
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     
     # Запускаем Avito polling сервис в фоне (только если webhook не настроен)
     async def start_avito_polling():
