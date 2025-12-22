@@ -32,6 +32,7 @@ const AVAILABLE_EVENTS = [
 
 export const WebhooksManagement = ({ isOpen, onClose, projectId }: WebhooksManagementProps) => {
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
+  const scrollPositionRef = useRef(0)
   const [loading, setLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)

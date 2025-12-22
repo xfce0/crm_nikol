@@ -21,6 +21,7 @@ interface TaskEditModalProps {
 
 export const TaskEditModal = ({ isOpen, onClose, onSuccess, task, employees }: TaskEditModalProps) => {
   const [loading, setLoading] = useState(false)
+  const scrollPositionRef = useRef(0)
 
   const [formData, setFormData] = useState<UpdateTaskData>({
     title: task.title,

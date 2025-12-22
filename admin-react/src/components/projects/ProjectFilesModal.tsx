@@ -65,6 +65,7 @@ const formatDate = (dateString: string): string => {
 
 export const ProjectFilesModal = ({ isOpen, onClose, projectId }: ProjectFilesModalProps) => {
   const [files, setFiles] = useState<ProjectFile[]>([])
+  const scrollPositionRef = useRef(0)
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const modalContentRef = useRef<HTMLDivElement>(null)

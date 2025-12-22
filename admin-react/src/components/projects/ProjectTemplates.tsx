@@ -40,6 +40,7 @@ export const ProjectTemplates = ({
   onSelectTemplate,
 }: ProjectTemplatesProps) => {
   const [templates, setTemplates] = useState<ProjectTemplate[]>([])
+  const scrollPositionRef = useRef(0)
   const [loading, setLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)

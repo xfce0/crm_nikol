@@ -62,29 +62,26 @@ export const ProjectCreateModal = ({ isOpen, onClose, onSuccess }: ProjectCreate
   // Block body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
-      const scrollY = window.scrollY
-      document.body.style.position = 'fixed'
-      document.body.style.top = `-${scrollY}px`
-      document.body.style.width = '100%'
-      document.body.style.overflow = 'hidden'
+      // Save current scroll position
+      scrollPositionRef.current = window.scrollY
 
-      // Reset modal content scroll to top
+      // Lock scroll
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${scrollPositionRef.current}px`
+      document.body.style.width = '100%'
+      document.body.style.overflow = 'hidden'// Reset modal content scroll to top
       if (modalContentRef.current) {
         modalContentRef.current.scrollTop = 0
       }
-    } else {
-      const scrollY = document.body.style.top
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
-      document.body.style.overflow = ''
-      window.scrollTo(0, parseInt(scrollY || '0') * -1)
-    }
-    return () => {
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
-      document.body.style.overflow = ''
+    
+      // Cleanup function - restore scroll when modal closes
+      return () => {
+        document.body.style.position = ''
+        document.body.style.top = ''
+        document.body.style.width = ''
+        document.body.style.overflow = ''
+        window.scrollTo(0, scrollPositionRef.current)
+      }
     }
   }, [isOpen])
 

@@ -17,6 +17,7 @@ export const ImagePreviewModal = ({
   canDownload = true,
 }: ImagePreviewModalProps) => {
   const [zoom, setZoom] = useState(1)
+  const scrollPositionRef = useRef(0)
   const [rotation, setRotation] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
 

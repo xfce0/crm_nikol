@@ -25,6 +25,7 @@ interface FullTextSearchProps {
 
 export const FullTextSearch = ({ isOpen, onClose, onResultClick }: FullTextSearchProps) => {
   const [query, setQuery] = useState('')
+  const scrollPositionRef = useRef(0)
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [filters, setFilters] = useState({

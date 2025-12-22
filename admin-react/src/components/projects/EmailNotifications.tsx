@@ -155,6 +155,7 @@ const DEFAULT_SETTINGS: NotificationSetting[] = [
 
 export const EmailNotifications = ({ isOpen, onClose }: EmailNotificationsProps) => {
   const [settings, setSettings] = useState<NotificationSetting[]>(DEFAULT_SETTINGS)
+  const scrollPositionRef = useRef(0)
   const [emailAddress, setEmailAddress] = useState('admin@example.com')
   const [emailFrequency, setEmailFrequency] = useState<'instant' | 'daily' | 'weekly'>('instant')
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false)
@@ -171,18 +172,23 @@ export const EmailNotifications = ({ isOpen, onClose }: EmailNotificationsProps)
 
   useEffect(() => {
     if (isOpen) {
-      const scrollY = window.scrollY
+      // Save current scroll position
+      scrollPositionRef.current = window.scrollY
+
+      // Lock scroll
       document.body.style.position = 'fixed'
-      document.body.style.top = `-${scrollY}px`
+      document.body.style.top = `-${scrollPositionRef.current}px`
       document.body.style.width = '100%'
       document.body.style.overflow = 'hidden'
-    } else {
-      const scrollY = document.body.style.top
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
-      document.body.style.overflow = ''
-      window.scrollTo(0, parseInt(scrollY || '0') * -1)
+
+      // Cleanup function - restore scroll when modal closes
+      return () => {
+        document.body.style.position = ''
+        document.body.style.top = ''
+        document.body.style.width = ''
+        document.body.style.overflow = ''
+        window.scrollTo(0, scrollPositionRef.current)
+      }
     }
   }, [isOpen])
 

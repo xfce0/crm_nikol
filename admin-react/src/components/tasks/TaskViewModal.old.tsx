@@ -39,6 +39,7 @@ export const TaskViewModal = ({
   onRefresh,
 }: TaskViewModalProps) => {
   const [task, setTask] = useState<Task>(initialTask)
+  const scrollPositionRef = useRef(0)
   const [comments, setComments] = useState<TaskComment[]>([])
   const [newComment, setNewComment] = useState('')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
