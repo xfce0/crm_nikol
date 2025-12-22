@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, Tag, Plus, Trash2, Edit2, Check, Search, Filter } from 'lucide-react'
 
 interface Label {

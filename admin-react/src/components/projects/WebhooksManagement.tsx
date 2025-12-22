@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, Plus, Trash2, Edit2, Check, Zap, AlertCircle, CheckCircle } from 'lucide-react'
 
 interface Webhook {

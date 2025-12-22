@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, DollarSign } from 'lucide-react'
 import contractorsApi from '../../api/contractors'
 import type { CreatePaymentData } from '../../api/contractors'

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, History, User, Calendar, ChevronDown, ChevronRight } from 'lucide-react'
 
 interface Change {

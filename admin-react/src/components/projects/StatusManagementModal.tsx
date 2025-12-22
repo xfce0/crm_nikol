@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, Plus, Edit2, Trash2, Check, AlertCircle, Tag } from 'lucide-react'
 
 interface Status {

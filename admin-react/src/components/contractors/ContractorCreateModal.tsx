@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, Plus } from 'lucide-react'
 import contractorsApi from '../../api/contractors'
 import type { CreateContractorData } from '../../api/contractors'

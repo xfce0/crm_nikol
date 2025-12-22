@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, Share2, Copy, Mail, Link as LinkIcon, Users, Clock, Check, Trash2, Eye, Edit, Shield } from 'lucide-react'
 
 interface SharedLink {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, Download, FileText, FileSpreadsheet, FileJson, FileCode } from 'lucide-react'
 import type { ExportFormat } from '../../utils/exportUtils'
 

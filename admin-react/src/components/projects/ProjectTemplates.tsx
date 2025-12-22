@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, Plus, Trash2, Edit2, Copy, FileText, Star } from 'lucide-react'
 
 interface ProjectTemplate {

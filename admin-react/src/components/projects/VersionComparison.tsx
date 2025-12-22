@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, GitCompare, ArrowRight, Check, Minus, Plus, AlertCircle } from 'lucide-react'
 
 interface Version {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, ZoomIn, ZoomOut, RotateCw, Download, Maximize2 } from 'lucide-react'
 
 interface ImagePreviewModalProps {

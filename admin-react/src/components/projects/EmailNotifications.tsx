@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, Mail, Bell, CheckCircle, Clock, AlertTriangle, Users, FileText } from 'lucide-react'
 
 interface NotificationSetting {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect , useRef} from 'react'
 import { X, Clock, User, DollarSign, Edit2, Tag, CheckCircle, AlertCircle } from 'lucide-react'
 
 interface TimelineEvent {
