@@ -97,11 +97,11 @@ export const ContractorCard = ({
       {/* Stats section */}
       <div className="bg-gray-50 px-6 py-4 grid grid-cols-3 gap-4 border-t border-gray-100">
         <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">0</div>
+          <div className="text-lg font-bold text-gray-900">{contractor.total_tasks || 0}</div>
           <div className="text-xs text-gray-500">Проектов</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">0</div>
+          <div className="text-lg font-bold text-gray-900">{contractor.active_tasks || 0}</div>
           <div className="text-xs text-gray-500">Активных</div>
         </div>
         <div className="text-center">

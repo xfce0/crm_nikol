@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, Eye, Edit, Trash2, Calendar, DollarSign } from 'lucide-react'
 import contractorsApi from '../../api/contractors'
 import type { ContractorDetails, ContractorAssignment, ContractorPayment } from '../../api/contractors'
@@ -22,6 +22,7 @@ export const ContractorViewModal = ({
   const [contractor, setContractor] = useState<ContractorDetails | null>(null)
   const [assignments, setAssignments] = useState<ContractorAssignment[]>([])
   const [payments, setPayments] = useState<ContractorPayment[]>([])
+  const scrollPositionRef = useRef(0)
 
   useEffect(() => {
     if (isOpen) {
@@ -31,18 +32,25 @@ export const ContractorViewModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      const scrollY = window.scrollY
+      // Save current scroll position
+      scrollPositionRef.current = window.scrollY
+
+      // Lock scroll
       document.body.style.position = 'fixed'
-      document.body.style.top = `-${scrollY}px`
+      document.body.style.top = `-${scrollPositionRef.current}px`
       document.body.style.width = '100%'
       document.body.style.overflow = 'hidden'
-    } else {
-      const scrollY = document.body.style.top
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
-      document.body.style.overflow = ''
-      window.scrollTo(0, parseInt(scrollY || '0') * -1)
+    }
+
+    // Cleanup function - always restore scroll when modal closes or component unmounts
+    return () => {
+      if (isOpen) {
+        document.body.style.position = ''
+        document.body.style.top = ''
+        document.body.style.width = ''
+        document.body.style.overflow = ''
+        window.scrollTo(0, scrollPositionRef.current)
+      }
     }
   }, [isOpen])
 

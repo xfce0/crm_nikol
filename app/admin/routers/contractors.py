@@ -90,11 +90,39 @@ async def get_contractors(
         
         contractors_data = []
         for contractor in contractors:
-            # Подсчитываем общую сумму выплат
-            total_payments = db.query(func.sum(ContractorPayment.amount)).filter(
+            # Подсчитываем общую сумму выплат из contractor_payments
+            contractor_payments_total = db.query(func.sum(ContractorPayment.amount)).filter(
                 ContractorPayment.contractor_id == contractor.id
             ).scalar() or 0
-            
+
+            # Подсчитываем выплаты через finance_transactions (выплаты по проектам)
+            from ...database.models import FinanceTransaction, Project
+            project_payments_total = db.query(func.sum(FinanceTransaction.amount)).join(
+                Project, FinanceTransaction.project_id == Project.id
+            ).filter(
+                and_(
+                    Project.assigned_executor_id == contractor.id,
+                    FinanceTransaction.type == 'expense',
+                    FinanceTransaction.description.like('%исполнителю%')
+                )
+            ).scalar() or 0
+
+            # Суммируем оба вида выплат
+            total_payments = contractor_payments_total + project_payments_total
+
+            # Подсчитываем количество задач (проектов)
+            total_tasks = db.query(Task).filter(
+                Task.assigned_to_id == contractor.id
+            ).count()
+
+            # Подсчитываем активные задачи
+            active_tasks = db.query(Task).filter(
+                and_(
+                    Task.assigned_to_id == contractor.id,
+                    Task.status.notin_(['completed', 'cancelled'])
+                )
+            ).count()
+
             contractors_data.append({
                 "id": contractor.id,
                 "username": contractor.username,
@@ -106,7 +134,9 @@ async def get_contractors(
                 "telegram_id": contractor.telegram_id,  # Добавляем Telegram ID
                 "created_at": contractor.created_at.isoformat() if contractor.created_at else None,
                 "last_login": contractor.last_login.isoformat() if contractor.last_login else None,
-                "total_payments": total_payments
+                "total_payments": total_payments,
+                "total_tasks": total_tasks,
+                "active_tasks": active_tasks
             })
         
         return {
@@ -347,19 +377,32 @@ async def delete_contractor(
                     "message": f"Невозможно удалить исполнителя. У него есть {len(active_tasks)} активных задач. Сначала переназначьте или завершите эти задачи."
                 }
 
-            # Если есть только завершенные задачи, переназначаем их на текущего пользователя для истории
-            logger.info(f"Переназначение {len(assigned_tasks)} завершенных задач с исполнителя {contractor_id} на {current_user.id}")
-            for task in assigned_tasks:
-                task.assigned_to_id = current_user.id
-                task.updated_at = datetime.utcnow()
+            # Если есть только завершенные задачи, деактивируем исполнителя вместо удаления
+            logger.info(f"У исполнителя {contractor_id} есть {len(assigned_tasks)} завершенных задач. Деактивируем вместо удаления.")
+            contractor.is_active = False
+            contractor.updated_at = datetime.utcnow()
+            db.commit()
 
-        # Также проверяем задачи, созданные исполнителем
+            logger.info(f"Исполнитель деактивирован: ID={contractor_id}, username={contractor.username}")
+            return {
+                "success": True,
+                "message": f"Исполнитель {contractor.username} деактивирован (у него есть завершенные задачи)"
+            }
+
+        # Проверяем задачи, созданные исполнителем
         created_tasks = db.query(Task).filter(Task.created_by_id == contractor_id).all()
         if created_tasks:
-            logger.info(f"Переназначение {len(created_tasks)} задач, созданных исполнителем {contractor_id}, на {current_user.id}")
-            for task in created_tasks:
-                task.created_by_id = current_user.id
-                task.updated_at = datetime.utcnow()
+            # Если есть созданные задачи, также деактивируем
+            logger.info(f"У исполнителя {contractor_id} есть {len(created_tasks)} созданных задач. Деактивируем вместо удаления.")
+            contractor.is_active = False
+            contractor.updated_at = datetime.utcnow()
+            db.commit()
+
+            logger.info(f"Исполнитель деактивирован: ID={contractor_id}, username={contractor.username}")
+            return {
+                "success": True,
+                "message": f"Исполнитель {contractor.username} деактивирован (у него есть созданные задачи)"
+            }
 
         # Удаляем исполнителя
         db.delete(contractor)

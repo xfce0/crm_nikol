@@ -102,7 +102,7 @@ export const Contractors = () => {
         setShowViewModal(false)
         setSelectedContractor(null)
       } else {
-        alert('Ошибка удаления: ' + response.message)
+        showToast(response.message || 'Ошибка удаления исполнителя', 'error')
       }
     } catch (error) {
       console.error('Error deleting contractor:', error)
@@ -373,7 +373,7 @@ export const Contractors = () => {
             setShowViewModal(false)
             setSelectedContractor(null)
           }}
-          contractor={selectedContractor}
+          contractorId={selectedContractor.id}
           onEdit={() => {
             setShowViewModal(false)
             handleEditContractor(selectedContractor)

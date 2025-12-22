@@ -12,6 +12,8 @@ export interface Contractor {
   created_at?: string
   last_login?: string
   total_payments?: number
+  total_tasks?: number
+  active_tasks?: number
 }
 
 export interface ContractorDetails extends Contractor {

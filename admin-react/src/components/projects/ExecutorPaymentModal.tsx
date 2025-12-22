@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, AlertCircle, Wallet } from 'lucide-react'
+import { API_BASE_URL } from '../../config'
 
 interface ExecutorPaymentModalProps {
   isOpen: boolean
@@ -63,7 +64,7 @@ export const ExecutorPaymentModal = ({
     setError('')
 
     try {
-      const response = await fetch(`http://localhost:8000/admin/api/projects/${projectId}/executor-payments`, {
+      const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/executor-payments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
