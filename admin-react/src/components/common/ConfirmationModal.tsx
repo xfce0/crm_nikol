@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { X, AlertTriangle, Info, CheckCircle, XCircle } from 'lucide-react'
 
 interface ConfirmationModalProps {
@@ -24,6 +24,8 @@ export const ConfirmationModal = ({
   type = 'warning',
   loading = false,
 }: ConfirmationModalProps) => {
+  const scrollPositionRef = useRef(0)
+
   useEffect(() => {
     if (isOpen) {
       // Save current scroll position

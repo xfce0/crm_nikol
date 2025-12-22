@@ -1,5 +1,5 @@
 import { X, Keyboard } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface Shortcut {
   keys: string[]
@@ -37,6 +37,8 @@ const shortcuts: Shortcut[] = [
 ]
 
 export const ShortcutsHelpModal = ({ isOpen, onClose }: ShortcutsHelpModalProps) => {
+  const scrollPositionRef = useRef(0)
+
   useEffect(() => {
     if (isOpen) {
       // Save current scroll position
