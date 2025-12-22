@@ -40,11 +40,9 @@ export const ContractorViewModal = ({
       document.body.style.top = `-${scrollPositionRef.current}px`
       document.body.style.width = '100%'
       document.body.style.overflow = 'hidden'
-    }
 
-    // Cleanup function - always restore scroll when modal closes or component unmounts
-    return () => {
-      if (isOpen) {
+      // Cleanup function - restore scroll when modal closes
+      return () => {
         document.body.style.position = ''
         document.body.style.top = ''
         document.body.style.width = ''
